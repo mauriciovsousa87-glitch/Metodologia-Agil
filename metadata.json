@@ -1,0 +1,5 @@
+{
+  "name": "Agile Master - Gestor de Projetos Ágeis",
+  "description": "Ferramenta completa para gestão ágil inspirada no Azure DevOps, incluindo Backlog hierárquico, Sprints, Taskboard Kanban, Dashboard de métricas e Gantt de Frentes de Trabalho.",
+  "requestFramePermissions": []
+}
