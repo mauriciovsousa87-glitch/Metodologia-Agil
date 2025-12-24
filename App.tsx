@@ -7,47 +7,131 @@ import SprintView from './components/Sprints/SprintView';
 import DashboardView from './components/Dashboard/DashboardView';
 import GanttView from './components/Gantt/GanttView';
 import { ViewType } from './types';
-import { Users, UserPlus, X, Shield, Settings as SettingsIcon, Info, Camera, Image as ImageIcon, Loader2, Database, ExternalLink } from 'lucide-react';
+import { Users, UserPlus, X, Shield, Settings as SettingsIcon, Info, Camera, Image as ImageIcon, Loader2, Database, ExternalLink, RefreshCw, Terminal, Copy, Check } from 'lucide-react';
 
-const SetupOverlay: React.FC = () => (
-  <div className="fixed inset-0 bg-slate-900 z-[9999] flex items-center justify-center p-6">
-    <div className="max-w-xl w-full bg-white rounded-[40px] shadow-2xl overflow-hidden border-8 border-slate-800 animate-in zoom-in-95 duration-500">
-      <div className="p-10 text-center space-y-6">
-        <div className="w-24 h-24 bg-blue-100 rounded-3xl flex items-center justify-center mx-auto text-blue-600 shadow-inner border-2 border-blue-50">
-          <Database size={48} strokeWidth={2.5} />
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">Conexão Necessária</h2>
-          <p className="text-slate-500 font-bold text-sm uppercase tracking-widest leading-relaxed">O sistema precisa do Supabase para persistir seus dados e arquivos.</p>
-        </div>
-        
-        <div className="bg-slate-50 p-6 rounded-3xl border-2 border-slate-100 text-left space-y-4">
-          <div className="flex gap-4">
-            <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-black shrink-0">1</div>
-            <p className="text-xs font-black text-slate-700 uppercase leading-relaxed">Crie um projeto em <a href="https://supabase.com" target="_blank" className="text-blue-600 underline">supabase.com</a></p>
-          </div>
-          <div className="flex gap-4">
-            <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-black shrink-0">2</div>
-            <p className="text-xs font-black text-slate-700 uppercase leading-relaxed">Configure as variáveis no Vercel: <code className="bg-white px-1.5 py-0.5 rounded border">SUPABASE_URL</code> e <code className="bg-white px-1.5 py-0.5 rounded border">SUPABASE_ANON_KEY</code></p>
-          </div>
-        </div>
+const SetupOverlay: React.FC = () => {
+  const [showSQL, setShowSQL] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const handleRefresh = () => window.location.reload();
 
-        <div className="pt-4">
-          <a 
-            href="https://supabase.com" 
-            target="_blank"
-            className="inline-flex items-center gap-2 bg-blue-600 text-white px-10 py-5 rounded-3xl font-black text-sm uppercase tracking-widest shadow-xl hover:bg-blue-700 active:scale-95 transition-all"
-          >
-            Ir para o Supabase <ExternalLink size={18} />
-          </a>
+  const sqlCode = `-- 1. Criar tabela de perfis (Membros do Time)
+create table public.profiles (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  avatar_url text,
+  created_at timestamp with time zone default now()
+);
+
+-- 2. Criar tabela de sprints
+create table public.sprints (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  start_date date,
+  end_date date,
+  objective text,
+  status text check (status in ('Planejada', 'Ativa', 'Encerrada')),
+  created_at timestamp with time zone default now()
+);
+
+-- 3. Criar tabela de itens de trabalho (Work Items)
+create table public.work_items (
+  id text primary key,
+  type text not null,
+  title text not null,
+  description text,
+  priority text,
+  effort integer default 0,
+  kpi text,
+  assignee_id uuid references public.profiles(id) on delete set null,
+  status text,
+  column_name text,
+  parent_id text,
+  sprint_id uuid references public.sprints(id) on delete set null,
+  workstream_id text,
+  blocked boolean default false,
+  block_reason text,
+  attachments jsonb default '[]'::jsonb,
+  created_at timestamp with time zone default now()
+);
+
+-- 4. Habilitar acesso público (Para desenvolvimento)
+alter table public.profiles enable row level security;
+alter table public.sprints enable row level security;
+alter table public.work_items enable row level security;
+
+create policy "Public Access" on public.profiles for all using (true);
+create policy "Public Access" on public.sprints for all using (true);
+create policy "Public Access" on public.work_items for all using (true);`;
+
+  const copySQL = () => {
+    navigator.clipboard.writeText(sqlCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900 z-[9999] flex items-center justify-center p-4 overflow-y-auto">
+      <div className="max-w-xl w-full bg-white rounded-[40px] shadow-2xl overflow-hidden border-8 border-slate-800 animate-in zoom-in-95 duration-500 my-8">
+        <div className="p-8 md:p-10 text-center space-y-6">
+          <div className="w-20 h-20 bg-blue-100 rounded-3xl flex items-center justify-center mx-auto text-blue-600 shadow-inner border-2 border-blue-50">
+            <Database size={40} strokeWidth={2.5} />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl md:text-3xl font-black text-slate-900 uppercase tracking-tighter">Conexão Pendente</h2>
+            <p className="text-slate-500 font-bold text-xs md:text-sm uppercase tracking-widest leading-relaxed">
+              O Supabase respondeu, mas as tabelas podem não existir.
+            </p>
+          </div>
+          
+          <div className="bg-slate-50 p-6 rounded-3xl border-2 border-slate-100 text-left space-y-5">
+            <div className="flex gap-4">
+              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-black shrink-0">1</div>
+              <p className="text-xs font-black text-slate-700 uppercase leading-relaxed">
+                Abra o <span className="text-blue-600">SQL Editor</span> no painel do seu projeto no Supabase.com
+              </p>
+            </div>
+            <div className="flex gap-4">
+              <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-black shrink-0">2</div>
+              <p className="text-xs font-black text-slate-700 uppercase leading-relaxed">
+                Clique no botão abaixo para copiar o script de criação das tabelas e execute-o (Run).
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 pt-2">
+            <button 
+              onClick={() => setShowSQL(!showSQL)}
+              className="w-full inline-flex items-center justify-center gap-2 bg-slate-800 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-700 transition-all"
+            >
+              <Terminal size={18} /> {showSQL ? 'OCULTAR SCRIPT SQL' : 'VER SCRIPT SQL'}
+            </button>
+            
+            {showSQL && (
+              <div className="relative animate-in slide-in-from-top-4 duration-300">
+                <pre className="bg-slate-900 text-slate-300 p-4 rounded-2xl text-[10px] text-left overflow-x-auto max-h-48 font-mono custom-scrollbar">
+                  {sqlCode}
+                </pre>
+                <button 
+                  onClick={copySQL}
+                  className="absolute top-2 right-2 p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-all"
+                >
+                  {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+                </button>
+              </div>
+            )}
+
+            <button 
+              onClick={handleRefresh}
+              className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-blue-700 active:scale-95 transition-all"
+            >
+              Já executei o SQL, recarregar <RefreshCw size={16} />
+            </button>
+          </div>
         </div>
-      </div>
-      <div className="bg-slate-900 p-4 text-center">
-        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Agile Master Enterprise v2.5</p>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const SettingsView: React.FC = () => {
   const { users, addUser, removeUser, loading } = useAgile();
@@ -191,9 +275,13 @@ const App: React.FC = () => {
 };
 
 const AppContent: React.FC<{ renderContent: () => React.ReactNode, activeView: ViewType, onViewChange: (v: ViewType) => void }> = ({ renderContent, activeView, onViewChange }) => {
-  const { configured } = useAgile();
+  const { configured, workItems, users } = useAgile();
   
-  if (!configured && activeView !== 'Settings') {
+  // Se estiver configurado mas não houver nada no banco, pode ser que as tabelas não existam
+  // Mostramos o overlay se estiver vazio e não houver sinal de carregamento concluído com sucesso
+  const likelyMissingTables = configured && workItems.length === 0 && users.length === 0;
+
+  if ((!configured || likelyMissingTables) && activeView !== 'Settings') {
     return <SetupOverlay />;
   }
 

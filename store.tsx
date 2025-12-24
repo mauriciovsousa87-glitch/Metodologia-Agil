@@ -39,7 +39,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !supabase) {
       setLoading(false);
       return;
     }
@@ -77,7 +77,8 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           sprintId: item.sprint_id,
           workstreamId: item.workstream_id,
           blockReason: item.block_reason,
-          column: item.column_name
+          column: item.column_name,
+          attachments: item.attachments || []
         }));
         setWorkItems(mapped);
       }
@@ -89,7 +90,11 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [selectedSprintId]);
 
   useEffect(() => { 
-    fetchData(); 
+    if (isSupabaseConfigured) {
+      fetchData(); 
+    } else {
+      setLoading(false);
+    }
   }, [fetchData]);
 
   const selectedSprint = sprints.find(s => s.id === selectedSprintId) || (sprints.length > 0 ? sprints[sprints.length - 1] : null);
@@ -188,11 +193,15 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!supabase) return;
     const fileName = `attachments/${itemId}/${Date.now()}-${file.name}`;
     const { data, error } = await supabase.storage.from('attachments').upload(fileName, file);
-    if (error) return;
+    if (error) {
+      console.error("Upload error:", error);
+      return;
+    }
 
     const publicUrl = supabase.storage.from('attachments').getPublicUrl(fileName).data.publicUrl;
     const item = workItems.find(i => i.id === itemId);
-    const attachments = [...(item?.attachments || []), { 
+    const currentAttachments = item?.attachments || [];
+    const attachments = [...currentAttachments, { 
       id: fileName, 
       name: file.name, 
       type: file.type, 

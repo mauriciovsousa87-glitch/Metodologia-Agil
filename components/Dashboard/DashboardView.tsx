@@ -12,7 +12,8 @@ import { useAgile } from '../../store';
 import { ItemStatus, ItemType } from '../../types';
 
 const DashboardView: React.FC = () => {
-  const { workItems, sprints, workstreams, users } = useAgile();
+  // Fix: Removed 'workstreams' as it is not present in AgileContextType; workstreams are managed as workItems of type WORKSTREAM.
+  const { workItems, sprints, users } = useAgile();
 
   // Metrics Logic
   const statusData = [
