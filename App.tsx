@@ -14,7 +14,12 @@ const SetupOverlay: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const handleRefresh = () => window.location.reload();
 
-  const sqlCode = `-- 1. Criar tabela de perfis (Membros do Time)
+  const sqlCode = `-- 0. Limpeza (Evita erro de "already exists")
+drop table if exists public.work_items;
+drop table if exists public.sprints;
+drop table if exists public.profiles;
+
+-- 1. Criar tabela de perfis (Membros do Time)
 create table public.profiles (
   id uuid default gen_random_uuid() primary key,
   name text not null,
@@ -54,14 +59,18 @@ create table public.work_items (
   created_at timestamp with time zone default now()
 );
 
--- 4. Habilitar acesso público (Para desenvolvimento)
+-- 4. Habilitar acesso público
 alter table public.profiles enable row level security;
 alter table public.sprints enable row level security;
 alter table public.work_items enable row level security;
 
-create policy "Public Access" on public.profiles for all using (true);
-create policy "Public Access" on public.sprints for all using (true);
-create policy "Public Access" on public.work_items for all using (true);`;
+create policy "Public Access" on public.profiles for all using (true) with check (true);
+create policy "Public Access" on public.sprints for all using (true) with check (true);
+create policy "Public Access" on public.work_items for all using (true) with check (true);
+
+-- 5. Criar buckets de armazenamento
+insert into storage.buckets (id, name, public) values ('avatars', 'avatars', true) on conflict (id) do nothing;
+insert into storage.buckets (id, name, public) values ('attachments', 'attachments', true) on conflict (id) do nothing;`;
 
   const copySQL = () => {
     navigator.clipboard.writeText(sqlCode);
@@ -79,7 +88,7 @@ create policy "Public Access" on public.work_items for all using (true);`;
           <div className="space-y-2">
             <h2 className="text-2xl md:text-3xl font-black text-slate-900 uppercase tracking-tighter">Conexão Pendente</h2>
             <p className="text-slate-500 font-bold text-xs md:text-sm uppercase tracking-widest leading-relaxed">
-              O Supabase respondeu, mas as tabelas podem não existir.
+              O Supabase respondeu, mas as tabelas podem não existir ou estar incompletas.
             </p>
           </div>
           
@@ -93,7 +102,7 @@ create policy "Public Access" on public.work_items for all using (true);`;
             <div className="flex gap-4">
               <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-black shrink-0">2</div>
               <p className="text-xs font-black text-slate-700 uppercase leading-relaxed">
-                Clique no botão abaixo para copiar o script de criação das tabelas e execute-o (Run).
+                Cole o script atualizado (que agora inclui a limpeza das tabelas antigas) e clique em <b>Run</b>.
               </p>
             </div>
           </div>
@@ -103,7 +112,7 @@ create policy "Public Access" on public.work_items for all using (true);`;
               onClick={() => setShowSQL(!showSQL)}
               className="w-full inline-flex items-center justify-center gap-2 bg-slate-800 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-700 transition-all"
             >
-              <Terminal size={18} /> {showSQL ? 'OCULTAR SCRIPT SQL' : 'VER SCRIPT SQL'}
+              <Terminal size={18} /> {showSQL ? 'OCULTAR SCRIPT SQL' : 'VER SCRIPT SQL ATUALIZADO'}
             </button>
             
             {showSQL && (
@@ -278,7 +287,6 @@ const AppContent: React.FC<{ renderContent: () => React.ReactNode, activeView: V
   const { configured, workItems, users } = useAgile();
   
   // Se estiver configurado mas não houver nada no banco, pode ser que as tabelas não existam
-  // Mostramos o overlay se estiver vazio e não houver sinal de carregamento concluído com sucesso
   const likelyMissingTables = configured && workItems.length === 0 && users.length === 0;
 
   if ((!configured || likelyMissingTables) && activeView !== 'Settings') {
