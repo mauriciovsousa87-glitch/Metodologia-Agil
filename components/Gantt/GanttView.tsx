@@ -17,21 +17,25 @@ const GanttView: React.FC = () => {
     [workItems]
   );
 
-  // 1. Calcular dinamicamente o início da timeline baseado na tarefa mais antiga
+  // 1. Calcular dinamicamente o início da timeline
   const timelineStart = useMemo(() => {
     const dates = workItems
       .map(i => i.startDate)
       .filter(d => !!d)
       .map(d => new Date(d!).getTime());
     
-    if (dates.length === 0) return new Date('2024-12-15');
+    if (dates.length === 0) {
+      const d = new Date();
+      d.setDate(d.getDate() - 15);
+      return d;
+    }
     const minDate = new Date(Math.min(...dates));
     minDate.setDate(minDate.getDate() - 7); // Margem de uma semana antes
     return minDate;
   }, [workItems]);
 
   const dayWidth = 26; // pixels por dia
-  const totalDays = 120; // Extensão da visualização
+  const totalDays = 500; // Aumentado de 120 para 500 para cobrir projetos longos
 
   const days = useMemo(() => {
     return Array.from({ length: totalDays }).map((_, i) => {
@@ -39,11 +43,11 @@ const GanttView: React.FC = () => {
       d.setDate(d.getDate() + i);
       return d;
     });
-  }, [timelineStart]);
+  }, [timelineStart, totalDays]);
 
   // Auxiliares para cálculo de posição
   const getX = (dateStr?: string) => {
-    if (!dateStr) return -1000; // Esconde se não houver data
+    if (!dateStr) return -1000;
     const date = new Date(dateStr);
     const diff = (date.getTime() - timelineStart.getTime()) / (1000 * 60 * 60 * 24);
     return diff * dayWidth;
@@ -63,7 +67,7 @@ const GanttView: React.FC = () => {
     [workItems, selectedWS]
   );
 
-  // Organização dos dados para a tabela seguindo a hierarquia
+  // Organização dos dados para a tabela
   const ganttData = useMemo(() => {
     let initiatives = workItems.filter(i => i.type === ItemType.INITIATIVE);
     
@@ -100,14 +104,12 @@ const GanttView: React.FC = () => {
     const bgColor = type === 'INIT' ? 'bg-[#b8cce4]' : type === 'DEL' ? 'bg-[#f2dbdb]' : 'bg-white';
     const textColor = type === 'INIT' ? 'text-blue-900 font-black' : type === 'DEL' ? 'text-red-900 font-bold' : 'text-gray-700';
     
-    // Cor da barra baseada no tipo (inspirado no print)
     const barColor = type === 'TASK' ? 'bg-[#7e60a0] border-[#5d447a]' : 
                      type === 'DEL' ? 'bg-slate-500 border-slate-600' : 
                      'bg-[#4a6d96] border-[#2c435e]';
 
     return (
       <div key={item.id} className="flex group border-b border-gray-200 hover:bg-slate-50 transition-colors">
-        {/* Lado Esquerdo: Tabela de Dados */}
         <div className={`flex w-[600px] shrink-0 border-r border-gray-300 ${bgColor}`}>
           <div className={`w-[300px] px-4 py-2 text-[11px] truncate ${textColor} border-r border-gray-200 flex items-center gap-2`}>
             {type === 'TASK' && <div className="w-4 shrink-0" />}
@@ -127,15 +129,12 @@ const GanttView: React.FC = () => {
           </div>
         </div>
 
-        {/* Lado Direito: Visualização do Cronograma */}
-        <div className="relative flex-1 bg-[#fcfcfc]">
+        <div className="relative flex-1 bg-white min-w-[13000px]">
           {hasDates ? (
             <div 
               className={`absolute top-2 h-5 rounded shadow-sm flex items-center justify-center overflow-hidden transition-all hover:brightness-110 z-10 border ${barColor}`}
               style={{ left: getX(start), width: getWidth(start, end) }}
-              title={`${item.title}: ${start} a ${end}`}
             >
-               {/* Overlay de Progresso */}
                <div className="absolute inset-y-0 left-0 bg-white/30 transition-all" style={{ width: `${progress}%` }} />
             </div>
           ) : (
@@ -150,7 +149,6 @@ const GanttView: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col bg-white overflow-hidden">
-      {/* HEADER DE FILTROS */}
       <div className="px-6 py-4 bg-white border-b border-gray-200 shrink-0 shadow-sm z-40">
         <div className="flex items-center justify-between">
            <div>
@@ -189,23 +187,22 @@ const GanttView: React.FC = () => {
         </div>
       </div>
 
-      {/* ÁREA DO GRÁFICO (COM SCROLL) */}
-      <div className="flex-1 overflow-auto custom-scrollbar flex flex-col bg-[#e9e9e9]">
+      <div className="flex-1 overflow-auto custom-scrollbar flex flex-col bg-[#f0f0f0]">
         
-        {/* CABEÇALHO DO GRID (TIMELINE) */}
+        {/* TIMELINE HEADER */}
         <div className="sticky top-0 z-30 flex shrink-0 shadow-md">
           <div className="flex w-[600px] bg-[#666] text-white text-[9px] font-black uppercase tracking-wider shrink-0 border-r border-gray-500">
             <div className="w-[300px] px-4 py-3 border-r border-gray-500 flex items-center">Item de Trabalho</div>
-            <div className="w-[100px] px-2 py-3 border-r border-gray-500 flex items-center justify-center text-center">Atribuído</div>
+            <div className="w-[100px] px-2 py-3 border-r border-gray-500 flex items-center justify-center text-center text-[8px]">Atribuído</div>
             <div className="w-[80px] px-2 py-3 border-r border-gray-500 flex items-center justify-center">Progresso</div>
             <div className="w-[60px] px-2 py-3 border-r border-gray-500 flex items-center justify-center">Início</div>
             <div className="w-[60px] px-2 py-3 flex items-center justify-center">Término</div>
           </div>
 
-          <div className="flex-1 bg-[#666] border-b border-gray-500 overflow-hidden">
+          <div className="flex-1 bg-[#666] overflow-hidden min-w-[13000px]">
             <div className="flex border-b border-gray-500">
                {Array.from({ length: Math.ceil(totalDays / 7) }).map((_, i) => (
-                 <div key={i} className="w-[182px] shrink-0 border-r border-gray-500 py-1.5 text-center text-[9px] text-gray-100 font-black bg-[#888]">
+                 <div key={i} className="w-[182px] shrink-0 border-r border-gray-500 py-1.5 text-center text-[9px] text-gray-100 font-black bg-[#777]">
                    SEMANA {new Date(timelineStart.getTime() + (i * 7 * 86400000)).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                  </div>
                ))}
@@ -221,9 +218,9 @@ const GanttView: React.FC = () => {
         </div>
 
         {/* CORPO DO GANTT */}
-        <div className="relative flex-1 bg-white min-w-max">
-           {/* Grid de fundo */}
-           <div className="absolute inset-y-0 left-[600px] right-0 flex pointer-events-none z-0">
+        <div className="relative flex-1 bg-white min-w-max min-h-max">
+           {/* Grid de fundo agora alinhado corretamente */}
+           <div className="absolute inset-y-0 left-[600px] flex pointer-events-none z-0 min-w-[13000px]">
              {days.map((d, i) => (
                <div 
                  key={i} 
@@ -234,7 +231,7 @@ const GanttView: React.FC = () => {
              ))}
            </div>
 
-           {/* Linha de "Hoje" */}
+           {/* Linha de Hoje */}
            <div 
              className="absolute top-0 bottom-0 w-0.5 bg-red-600 z-20 opacity-70"
              style={{ left: `calc(600px + ${getX(new Date().toISOString())}px)` }}
@@ -242,7 +239,6 @@ const GanttView: React.FC = () => {
              <div className="absolute top-0 w-3 h-3 bg-red-600 rounded-full -ml-[5px] -mt-1 shadow-lg" />
            </div>
 
-           {/* Renderização da Árvore de Dados */}
            <div className="relative z-10">
              {ganttData.length > 0 ? (
                ganttData.map(init => (
@@ -266,8 +262,7 @@ const GanttView: React.FC = () => {
         </div>
       </div>
 
-      {/* LEGENDA INFERIOR */}
-      <div className="p-3 bg-slate-100 border-t border-gray-300 flex items-center gap-6 shrink-0 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+      <div className="p-3 bg-slate-100 border-t border-gray-300 flex items-center gap-6 shrink-0 z-50">
          <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-[#4a6d96] rounded border border-slate-600" />
             <span className="text-[10px] font-black text-slate-600 uppercase">Iniciativa Macro</span>
