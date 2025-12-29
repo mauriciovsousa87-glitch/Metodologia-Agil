@@ -24,12 +24,16 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
   const [localKpi, setLocalKpi] = useState(item.kpi || '');
   const [localKpiImpact, setLocalKpiImpact] = useState(item.kpiImpact || '');
   const [localDescription, setLocalDescription] = useState(item.description || '');
+  const [localStartDate, setLocalStartDate] = useState(item.startDate || '');
+  const [localEndDate, setLocalEndDate] = useState(item.endDate || '');
 
   useEffect(() => {
     setLocalTitle(item.title);
     setLocalKpi(item.kpi || '');
     setLocalKpiImpact(item.kpiImpact || '');
     setLocalDescription(item.description || '');
+    setLocalStartDate(item.startDate || '');
+    setLocalEndDate(item.endDate || '');
   }, [item.id]);
 
   // AUTO-SAVE DE 1 SEGUNDO
@@ -40,13 +44,15 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
       if (localKpi !== (item.kpi || '')) updates.kpi = localKpi;
       if (localKpiImpact !== (item.kpiImpact || '')) updates.kpiImpact = localKpiImpact;
       if (localDescription !== (item.description || '')) updates.description = localDescription;
+      if (localStartDate !== (item.startDate || '')) updates.startDate = localStartDate;
+      if (localEndDate !== (item.endDate || '')) updates.endDate = localEndDate;
 
       if (Object.keys(updates).length > 0) {
         updateWorkItem(item.id, updates);
       }
     }, 1000);
     return () => clearTimeout(timer);
-  }, [localTitle, localKpi, localKpiImpact, localDescription, item.id]);
+  }, [localTitle, localKpi, localKpiImpact, localDescription, localStartDate, localEndDate, item.id]);
 
   const handleUpdate = (updates: Partial<WorkItem>) => {
     updateWorkItem(item.id, updates);
@@ -58,6 +64,8 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
     if (localKpi !== (item.kpi || '')) finalUpdates.kpi = localKpi;
     if (localKpiImpact !== (item.kpiImpact || '')) finalUpdates.kpiImpact = localKpiImpact;
     if (localDescription !== (item.description || '')) finalUpdates.description = localDescription;
+    if (localStartDate !== (item.startDate || '')) finalUpdates.startDate = localStartDate;
+    if (localEndDate !== (item.endDate || '')) finalUpdates.endDate = localEndDate;
 
     if (Object.keys(finalUpdates).length > 0) {
       updateWorkItem(item.id, finalUpdates);
@@ -163,6 +171,30 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
                 <option value="">Fora de Sprints</option>
                 {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
+            </div>
+
+            {/* NOVOS CAMPOS DE DATA PARA O GANTT */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                <Calendar size={12} className="text-blue-500" /> Data Início
+              </label>
+              <input 
+                type="date" 
+                className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm outline-none focus:border-blue-400" 
+                value={localStartDate} 
+                onChange={(e) => setLocalStartDate(e.target.value)} 
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                <Calendar size={12} className="text-red-500" /> Data Fim
+              </label>
+              <input 
+                type="date" 
+                className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm outline-none focus:border-blue-400" 
+                value={localEndDate} 
+                onChange={(e) => setLocalEndDate(e.target.value)} 
+              />
             </div>
 
             <div className="space-y-1.5">
