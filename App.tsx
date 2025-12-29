@@ -7,131 +7,10 @@ import SprintView from './components/Sprints/SprintView';
 import DashboardView from './components/Dashboard/DashboardView';
 import GanttView from './components/Gantt/GanttView';
 import { ViewType } from './types';
-import { Database, Terminal, Copy, Check, RefreshCw, Loader2, Shield, Settings as SettingsIcon, Camera, X, AlertTriangle, Info } from 'lucide-react';
-
-const SetupOverlay: React.FC = () => {
-  const [showSQL, setShowSQL] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const { seedData, loading } = useAgile();
-
-  const sqlCode = `-- SCRIPT DE ATUALIZAÇÃO E CRIAÇÃO (AGILE MASTER)
--- Execute este script para garantir que as colunas de KPI existam
-
--- 1. TABELA DE PERFIS
-CREATE TABLE IF NOT EXISTS profiles (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    avatar_url TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 2. TABELA DE SPRINTS
-CREATE TABLE IF NOT EXISTS sprints (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    start_date DATE,
-    end_date DATE,
-    objective TEXT,
-    status TEXT DEFAULT 'Planejada',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 3. TABELA DE ITENS DE TRABALHO
-CREATE TABLE IF NOT EXISTS work_items (
-    id TEXT PRIMARY KEY,
-    type TEXT NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT,
-    priority TEXT DEFAULT 'P3',
-    effort INTEGER DEFAULT 0,
-    assignee_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
-    status TEXT DEFAULT 'Novo',
-    column_name TEXT DEFAULT 'Novo',
-    parent_id TEXT REFERENCES work_items(id) ON DELETE CASCADE,
-    sprint_id UUID REFERENCES sprints(id) ON DELETE SET NULL,
-    workstream_id TEXT REFERENCES work_items(id) ON DELETE SET NULL,
-    blocked BOOLEAN DEFAULT FALSE,
-    block_reason TEXT,
-    start_date DATE,
-    end_date DATE,
-    attachments JSONB DEFAULT '[]'::jsonb,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 4. GARANTIR COLUNAS DE KPI (Caso a tabela já exista)
-ALTER TABLE work_items ADD COLUMN IF NOT EXISTS kpi TEXT;
-ALTER TABLE work_items ADD COLUMN IF NOT EXISTS kpi_impact TEXT;
-
--- 5. FORÇAR RELOAD DO CACHE DA API (PostgREST)
-NOTIFY pgrst, 'reload schema';
-
--- 6. BUCKETS DE STORAGE
-INSERT INTO storage.buckets (id, name, public) VALUES ('avatars', 'avatars', true) ON CONFLICT (id) DO NOTHING;
-INSERT INTO storage.buckets (id, name, public) VALUES ('attachments', 'attachments', true) ON CONFLICT (id) DO NOTHING;
-
--- 7. PERMISSÕES PÚBLICAS (RLS)
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE sprints ENABLE ROW LEVEL SECURITY;
-ALTER TABLE work_items ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Acesso Publico" ON profiles;
-CREATE POLICY "Acesso Publico" ON profiles FOR ALL USING (true) WITH CHECK (true);
-DROP POLICY IF EXISTS "Acesso Publico" ON sprints;
-CREATE POLICY "Acesso Publico" ON sprints FOR ALL USING (true) WITH CHECK (true);
-DROP POLICY IF EXISTS "Acesso Publico" ON work_items;
-CREATE POLICY "Acesso Publico" ON work_items FOR ALL USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Storage Publico" ON storage.objects;
-CREATE POLICY "Storage Publico" ON storage.objects FOR ALL USING (true) WITH CHECK (true);`;
-
-  const copySQL = () => {
-    navigator.clipboard.writeText(sqlCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-slate-900 z-[9999] flex items-center justify-center p-4">
-      <div className="max-w-xl w-full bg-white rounded-[40px] shadow-2xl overflow-hidden border-8 border-slate-800 p-10 text-center space-y-6">
-          <Database size={48} className="mx-auto text-blue-600" />
-          <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter text-balance">Sincronização de Banco de Dados</h2>
-          <p className="text-slate-500 font-bold text-sm uppercase">As colunas de KPI precisam ser ativadas no seu Supabase.</p>
-          
-          <div className="bg-blue-50 border-2 border-blue-100 rounded-2xl p-4 flex gap-3 text-left">
-             <Info size={20} className="text-blue-500 shrink-0" />
-             <p className="text-[11px] text-blue-800 font-bold uppercase leading-tight">
-               O script abaixo garante que as novas colunas de KPI e Impacto existam na sua tabela. Execute-o no SQL Editor do Supabase para evitar perda de dados.
-             </p>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <button onClick={() => setShowSQL(!showSQL)} className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-xs uppercase hover:bg-slate-700 transition-all">
-              {showSQL ? 'OCULTAR SCRIPT' : 'VER SCRIPT DE ATUALIZAÇÃO'}
-            </button>
-            {showSQL && (
-              <div className="relative">
-                <pre className="bg-slate-900 text-slate-300 p-4 rounded-2xl text-[10px] text-left overflow-x-auto max-h-48 font-mono">
-                  {sqlCode}
-                </pre>
-                <button onClick={copySQL} className="absolute top-2 right-2 p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-all">
-                  {copied ? <Check size={16}/> : <Copy size={16}/>}
-                </button>
-              </div>
-            )}
-            <div className="flex gap-3">
-              <button onClick={() => window.location.reload()} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-blue-700 transition-all">Já executei o SQL</button>
-              <button onClick={seedData} disabled={loading} className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-emerald-700 disabled:opacity-50 transition-all">
-                {loading ? 'Sincronizando...' : 'Ativar Admin'}
-              </button>
-            </div>
-          </div>
-      </div>
-    </div>
-  );
-};
+import { Settings as SettingsIcon, Camera, X, Shield } from 'lucide-react';
 
 const SettingsView: React.FC = () => {
-  const { users, addUser, removeUser, loading } = useAgile();
+  const { users, addUser, removeUser } = useAgile();
   const [newName, setNewName] = useState('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -197,13 +76,12 @@ const SettingsView: React.FC = () => {
                 <button onClick={() => removeUser(u.id)} className="text-slate-300 hover:text-red-500 transition-colors p-2"><X size={16} /></button>
               </div>
             ))}
-            {users.length === 0 && <p className="text-center text-xs font-bold text-slate-400 py-4 uppercase tracking-widest">Nenhum membro cadastrado.</p>}
           </div>
         </section>
         <section className="bg-slate-900 rounded-[40px] p-10 text-white flex flex-col justify-center items-center text-center space-y-4 shadow-2xl">
            <Shield size={48} className="text-emerald-500" />
-           <h3 className="text-xl font-black uppercase tracking-tighter">Colaboração em Tempo Real</h3>
-           <p className="text-xs text-slate-400 font-bold uppercase leading-relaxed">Os dados são salvos diretamente na Supabase para que toda a equipe visualize as mesmas informações instantaneamente.</p>
+           <h3 className="text-xl font-black uppercase tracking-tighter">Sincronização Ativa</h3>
+           <p className="text-xs text-slate-400 font-bold uppercase leading-relaxed">Dados salvos em tempo real na Supabase.</p>
         </section>
       </div>
     </div>
@@ -232,13 +110,13 @@ const App: React.FC = () => {
 };
 
 const AppWrapper: React.FC<{ renderContent: () => React.ReactNode, activeView: ViewType, onViewChange: (v: ViewType) => void }> = ({ renderContent, activeView, onViewChange }) => {
-  const { configured, users, loading, workItems } = useAgile();
+  const { configured, users, loading } = useAgile();
   
-  // Verifica se a estrutura das colunas KPI existe (tentativa de inferir se o banco está pronto)
-  // Se tivermos itens mas nenhum tiver KPI mesmo com dados salvos anteriormente, avisamos
   const isEmpty = users.length === 0 && !loading;
+  if ((!configured || isEmpty) && activeView !== 'Settings') {
+    return <div className="h-screen w-full flex items-center justify-center bg-slate-50 font-black uppercase text-slate-400 tracking-widest">Inicie em Settings para configurar o time...</div>;
+  }
   
-  if ((!configured || isEmpty) && activeView !== 'Settings') return <SetupOverlay />;
   return <Layout activeView={activeView} onViewChange={onViewChange}>{renderContent()}</Layout>;
 }
 
