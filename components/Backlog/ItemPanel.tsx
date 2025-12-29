@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { 
   X, Trash2, ListTodo, Calendar, AlertCircle, AlertTriangle, 
-  Upload, Download, Paperclip, ChevronRight, Lock, Unlock, AlignLeft, Loader2, ExternalLink, Tag
+  Upload, Download, Paperclip, ChevronRight, Lock, Unlock, AlignLeft, Loader2, ExternalLink, Tag, Target
 } from 'lucide-react';
 import { WorkItem, ItemPriority, ItemStatus, Attachment } from '../../types';
 import { useAgile } from '../../store';
@@ -168,13 +168,14 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
               <input type="date" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.endDate || ''} onChange={(e) => handleUpdate({ endDate: e.target.value })} />
             </div>
 
-            {/* Linha 4: Esforço */}
+            {/* Linha 4: Indicador KPI e Esforço */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Indicador (KPI)</label>
+              <input type="text" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.kpi || ''} onChange={(e) => handleUpdate({ kpi: e.target.value })} placeholder="Ex: % Produtividade" />
+            </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Esforço (Pts)</label>
               <input type="number" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.effort} onChange={(e) => handleUpdate({ effort: Number(e.target.value) })} />
-            </div>
-            <div className="flex items-end justify-center pb-2">
-               <span className="text-[9px] font-black text-slate-300 uppercase tracking-tighter">Campos sincronizados com Gantt</span>
             </div>
           </div>
 

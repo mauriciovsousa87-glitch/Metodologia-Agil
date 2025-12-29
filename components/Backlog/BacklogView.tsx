@@ -2,13 +2,13 @@
 import React, { useState, useMemo } from 'react';
 import { 
   ChevronRight, ChevronDown, Filter, 
-  Plus, PlusCircle, Target, Layers, Trash2, AlertTriangle, BarChart2, ArrowUpDown, Loader2
+  Plus, PlusCircle, Target, Layers, Trash2, AlertTriangle, BarChart2, ArrowUpDown, Loader2, ChevronUp
 } from 'lucide-react';
 import { useAgile } from '../../store';
 import { WorkItem, ItemType, ItemStatus } from '../../types';
 import ItemPanel from './ItemPanel';
 
-type SortKey = 'priority' | 'assignee' | 'kpi' | 'effort' | 'progress' | 'status' | 'id';
+type SortKey = 'priority' | 'assigneeId' | 'kpi' | 'effort' | 'status' | 'id' | 'title' | 'sprintId';
 
 const BacklogView: React.FC = () => {
   const { workItems, users, sprints, addWorkItem, deleteWorkItem } = useAgile();
@@ -27,20 +27,39 @@ const BacklogView: React.FC = () => {
     setExpandedItems(next);
   };
 
+  const handleSort = (key: SortKey) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
   const sortedAndFilteredItems = useMemo(() => {
     let items = [...workItems];
-    if (filterText) items = items.filter(i => i.title.toLowerCase().includes(filterText.toLowerCase()));
+    
+    if (filterText) {
+      items = items.filter(i => i.title.toLowerCase().includes(filterText.toLowerCase()));
+    }
+
     if (sortConfig) {
       items.sort((a, b) => {
-        let valA: any = a[sortConfig.key as keyof WorkItem] || '';
-        let valB: any = b[sortConfig.key as keyof WorkItem] || '';
+        let valA: any = a[sortConfig.key] || '';
+        let valB: any = b[sortConfig.key] || '';
+        
+        // Lógica especial para nomes em vez de IDs
+        if (sortConfig.key === 'assigneeId') {
+          valA = users.find(u => u.id === a.assigneeId)?.name || '';
+          valB = users.find(u => u.id === b.assigneeId)?.name || '';
+        }
+
         if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
         if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
       });
     }
     return items;
-  }, [workItems, filterText, sortConfig]);
+  }, [workItems, filterText, sortConfig, users]);
 
   const handleAddChild = async (parentId: string, type: ItemType) => {
     if (isProcessing) return;
@@ -179,8 +198,12 @@ const BacklogView: React.FC = () => {
           
           <td className="px-4 py-3">
              <div className="flex items-center gap-3">
-               <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-black text-slate-500 border-2 border-white shadow-sm shrink-0">
-                 {assignee?.name ? assignee.name[0] : '?'}
+               <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-black text-slate-500 border-2 border-white shadow-sm shrink-0 overflow-hidden">
+                 {assignee?.avatar_url ? (
+                   <img src={assignee.avatar_url} className="w-full h-full object-cover" alt={assignee.name} />
+                 ) : (
+                   <span className="text-[10px] font-black">{assignee?.name ? assignee.name[0] : '?'}</span>
+                 )}
                </div>
                <span className="text-[11px] font-black text-slate-700 truncate">{assignee?.name || 'Sem dono'}</span>
              </div>
@@ -219,6 +242,17 @@ const BacklogView: React.FC = () => {
     );
   };
 
+  const SortHeader = ({ label, sortKey, className = "" }: { label: string, sortKey: SortKey, className?: string }) => (
+    <th className={`px-4 py-5 font-black uppercase tracking-widest sticky top-0 z-10 border-b cursor-pointer hover:bg-slate-100 transition-colors ${className}`} onClick={() => handleSort(sortKey)}>
+      <div className="flex items-center gap-1.5 group">
+        {label}
+        <div className={`transition-opacity ${sortConfig?.key === sortKey ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
+          {sortConfig?.key === sortKey && sortConfig.direction === 'desc' ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+        </div>
+      </div>
+    </th>
+  );
+
   return (
     <div className="h-full flex flex-col bg-white">
       <div className="px-6 py-6 border-b flex items-center justify-between bg-white sticky top-0 z-20 shadow-sm">
@@ -242,19 +276,19 @@ const BacklogView: React.FC = () => {
       </div>
       <div className="flex-1 overflow-auto custom-scrollbar">
         <table className="w-full text-left border-collapse table-fixed">
-          <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10 border-b">
+          <thead className="bg-slate-50 text-[10px] font-black text-slate-400">
             <tr>
-              <th className="px-4 py-5 w-24">ID</th>
-              <th className="px-4 py-5 w-[25%]">Título</th>
-              <th className="px-4 py-5 w-48">Ações</th>
-              <th className="px-4 py-5 w-24 text-center">Prio</th>
-              <th className="px-4 py-5 w-44">Responsável</th>
-              <th className="px-4 py-5 w-36">KPI</th>
-              <th className="px-4 py-5 w-24">Esforço</th>
-              <th className="px-4 py-5 w-32">Progresso</th>
-              <th className="px-4 py-5 w-36">Sprint</th>
-              <th className="px-4 py-5 w-32">Status</th>
-              <th className="px-4 py-5 w-16"></th>
+              <SortHeader label="ID" sortKey="id" className="w-24" />
+              <SortHeader label="Título" sortKey="title" className="w-[25%]" />
+              <th className="px-4 py-5 w-48 font-black uppercase tracking-widest sticky top-0 z-10 border-b">Ações</th>
+              <SortHeader label="Prio" sortKey="priority" className="w-24 text-center" />
+              <SortHeader label="Responsável" sortKey="assigneeId" className="w-44" />
+              <SortHeader label="KPI" sortKey="kpi" className="w-36" />
+              <SortHeader label="Esforço" sortKey="effort" className="w-24" />
+              <th className="px-4 py-5 w-32 font-black uppercase tracking-widest sticky top-0 z-10 border-b">Progresso</th>
+              <SortHeader label="Sprint" sortKey="sprintId" className="w-36" />
+              <SortHeader label="Status" sortKey="status" className="w-32" />
+              <th className="px-4 py-5 w-16 font-black uppercase tracking-widest sticky top-0 z-10 border-b"></th>
             </tr>
           </thead>
           <tbody>

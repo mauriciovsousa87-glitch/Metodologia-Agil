@@ -238,41 +238,48 @@ const SprintView: React.FC = () => {
                 </div>
                 
                 <div className="flex-1 space-y-4 overflow-y-auto custom-scrollbar min-h-[100px]">
-                  {filteredItems.filter(i => i.column === col).map(item => (
-                    <div 
-                      key={item.id}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('itemId', item.id);
-                        e.dataTransfer.effectAllowed = 'move';
-                      }}
-                      onClick={() => setSelectedItemId(item.id)}
-                      className={`bg-white p-4 rounded-xl border-l-[6px] shadow-sm hover:shadow-lg hover:bg-slate-50 hover:border-blue-400 transition-all task-card-hand group relative select-none border border-slate-100 ${
-                        item.priority === 'P1' ? 'border-l-red-500' :
-                        item.priority === 'P2' ? 'border-l-orange-500' :
-                        'border-l-blue-500'
-                      } ${item.blocked ? 'opacity-90 bg-red-50/50' : ''}`}
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] font-black text-slate-300 font-mono tracking-tighter">{item.id}</span>
-                        <span className="text-[9px] font-black px-2 py-0.5 bg-slate-100 rounded-md text-slate-500 uppercase tracking-tighter">{item.type}</span>
-                      </div>
-                      <h4 className="text-sm font-bold text-slate-800 leading-tight group-hover:text-blue-700 transition-colors mb-3 line-clamp-2">{item.title}</h4>
-                      <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-slate-200 border border-white flex items-center justify-center text-[10px] font-black text-slate-500">
-                            {users.find(u => u.id === item.assigneeId)?.name.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <span className="text-[10px] font-black text-slate-400">{item.effort} PTS</span>
+                  {filteredItems.filter(i => i.column === col).map(item => {
+                    const assignee = users.find(u => u.id === item.assigneeId);
+                    return (
+                      <div 
+                        key={item.id}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('itemId', item.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                        }}
+                        onClick={() => setSelectedItemId(item.id)}
+                        className={`bg-white p-4 rounded-xl border-l-[6px] shadow-sm hover:shadow-lg hover:bg-slate-50 hover:border-blue-400 transition-all task-card-hand group relative select-none border border-slate-100 ${
+                          item.priority === 'P1' ? 'border-l-red-500' :
+                          item.priority === 'P2' ? 'border-l-orange-500' :
+                          'border-l-blue-500'
+                        } ${item.blocked ? 'opacity-90 bg-red-50/50' : ''}`}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-[10px] font-black text-slate-300 font-mono tracking-tighter">{item.id}</span>
+                          <span className="text-[9px] font-black px-2 py-0.5 bg-slate-100 rounded-md text-slate-500 uppercase tracking-tighter">{item.type}</span>
                         </div>
-                        {item.blocked && (
-                          <div className="p-1 bg-red-100 text-red-600 rounded-lg animate-pulse" title={item.blockReason}>
-                            <AlertCircle size={14} strokeWidth={3} />
+                        <h4 className="text-sm font-bold text-slate-800 leading-tight group-hover:text-blue-700 transition-colors mb-3 line-clamp-2">{item.title}</h4>
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-slate-200 border border-white flex items-center justify-center text-[10px] font-black text-slate-500 overflow-hidden">
+                              {assignee?.avatar_url ? (
+                                <img src={assignee.avatar_url} className="w-full h-full object-cover" alt={assignee.name} />
+                              ) : (
+                                assignee?.name ? assignee.name.split(' ').map(n => n[0]).join('') : '?'
+                              )}
+                            </div>
+                            <span className="text-[10px] font-black text-slate-400">{item.effort} PTS</span>
                           </div>
-                        )}
+                          {item.blocked && (
+                            <div className="p-1 bg-red-100 text-red-600 rounded-lg animate-pulse" title={item.blockReason}>
+                              <AlertCircle size={14} strokeWidth={3} />
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}

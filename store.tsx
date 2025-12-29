@@ -79,9 +79,10 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           description: item.description || '',
           priority: item.priority || ItemPriority.P3,
           effort: item.effort || 0,
+          kpi: item.kpi || '', // Mapeando KPI
           assigneeId: item.assignee_id,
           status: item.status || ItemStatus.NEW,
-          column: item.column_name || BoardColumn.NEW,
+          column_name: item.column_name || BoardColumn.NEW,
           parentId: item.parent_id,
           sprintId: item.sprint_id,
           workstreamId: item.workstream_id,
@@ -122,6 +123,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       description: item.description || '',
       priority: item.priority || ItemPriority.P3,
       effort: item.effort || 0,
+      kpi: item.kpi || '',
       assignee_id: item.assigneeId || null,
       status: item.status || ItemStatus.NEW,
       column_name: item.column || BoardColumn.NEW,
@@ -149,7 +151,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (updates.column !== undefined) pg.column_name = updates.column;
     if (updates.blockReason !== undefined) pg.block_reason = updates.blockReason || null;
     
-    // Evitar poluir o payload com campos extras
+    // Evitar poluir o payload com campos extras que não existem na tabela
     delete pg.assigneeId; delete pg.startDate; delete pg.endDate;
     delete pg.parentId; delete pg.sprintId; delete pg.workstreamId; 
     delete pg.column; delete pg.blockReason;
