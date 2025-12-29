@@ -34,35 +34,12 @@ interface AgileContextType {
 
 const AgileContext = createContext<AgileContextType | undefined>(undefined);
 
-// Chave para o fallback local
-const LOCAL_STORAGE_KEY = 'agile_master_local_sync_v1';
-
 export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [sprints, setSprints] = useState<Sprint[]>([]);
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null);
-
-  // Carrega backups do LocalStorage para evitar perda em caso de erro PGRST204
-  const getLocalBackups = () => {
-    try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : {};
-    } catch { return {}; }
-  };
-
-  const saveLocalBackup = (itemId: string, updates: any) => {
-    const current = getLocalBackups();
-    current[itemId] = { ...current[itemId], ...updates, _timestamp: Date.now() };
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(current));
-  };
-
-  const removeLocalBackup = (itemId: string) => {
-    const current = getLocalBackups();
-    delete current[itemId];
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(current));
-  };
 
   const fetchData = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -98,31 +75,27 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       if (wRes.data) {
-        const localBackups = getLocalBackups();
-        const mappedItems = wRes.data.map(item => {
-          const local = localBackups[item.id] || {};
-          return {
-            id: item.id,
-            type: item.type,
-            title: local.title !== undefined ? local.title : item.title,
-            description: local.description !== undefined ? local.description : (item.description || ''),
-            priority: item.priority || ItemPriority.P3,
-            effort: item.effort || 0,
-            kpi: local.kpi !== undefined ? local.kpi : (item.kpi || ''), 
-            kpiImpact: local.kpiImpact !== undefined ? local.kpiImpact : (item.kpi_impact || ''), 
-            assigneeId: item.assignee_id,
-            status: item.status || ItemStatus.NEW,
-            column: item.column_name || BoardColumn.NEW,
-            parentId: item.parent_id,
-            sprintId: item.sprint_id,
-            workstreamId: item.workstream_id,
-            blocked: item.blocked || false,
-            blockReason: item.block_reason || '',
-            startDate: item.start_date,
-            endDate: item.end_date,
-            attachments: item.attachments || []
-          };
-        });
+        const mappedItems = wRes.data.map(item => ({
+          id: item.id,
+          type: item.type,
+          title: item.title,
+          description: item.description || '',
+          priority: item.priority || ItemPriority.P3,
+          effort: item.effort || 0,
+          kpi: item.kpi || '', 
+          kpiImpact: item.kpi_impact || '', 
+          assigneeId: item.assignee_id,
+          status: item.status || ItemStatus.NEW,
+          column: item.column_name || BoardColumn.NEW,
+          parentId: item.parent_id,
+          sprintId: item.sprint_id,
+          workstreamId: item.workstream_id,
+          blocked: item.blocked || false,
+          blockReason: item.block_reason || '',
+          startDate: item.start_date,
+          endDate: item.end_date,
+          attachments: item.attachments || []
+        }));
         setWorkItems(mappedItems);
       }
     } catch (error) {
@@ -157,14 +130,14 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       sprint_id: item.sprintId || null,
       workstream_id: item.workstreamId || null
     };
-    const { error } = await supabase.from('work_items').insert([payload]);
-    if (!error) await fetchData();
+    await supabase.from('work_items').insert([payload]);
+    fetchData();
   };
 
   const updateWorkItem = async (id: string, updates: Partial<WorkItem>) => {
     if (!supabase) return;
 
-    // 1. Atualização visual imediata (Otimista)
+    // Atualização Visual Otimista (Pra ficar instantâneo na tela)
     setWorkItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
 
     const pg: any = {};
@@ -175,7 +148,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (updates.status !== undefined) pg.status = updates.status;
     if (updates.blocked !== undefined) pg.blocked = updates.blocked;
     
-    // Mapeamento direto
+    // Mapeamento direto para o Banco
     if (updates.kpi !== undefined) pg.kpi = updates.kpi;
     if (updates.kpiImpact !== undefined) pg.kpi_impact = updates.kpiImpact;
     
@@ -187,45 +160,41 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (updates.workstreamId !== undefined) pg.workstream_id = updates.workstreamId || null;
     if (updates.column !== undefined) pg.column_name = updates.column;
     if (updates.blockReason !== undefined) pg.block_reason = updates.blockReason || null;
+    if (updates.attachments !== undefined) pg.attachments = updates.attachments;
 
-    // 2. Salva Backup Local preventivo se houver alteração de KPI/Impacto
-    if (updates.kpi !== undefined || updates.kpiImpact !== undefined || updates.title !== undefined) {
-      saveLocalBackup(id, updates);
-    }
-
-    // 3. Tenta gravar no banco
-    const { error } = await supabase.from('work_items').update(pg).eq('id', id);
-    
-    if (error) {
-      console.error("ERRO SUPABASE (PGRST204?):", error);
-      // Mantemos o backup local se der erro de coluna não encontrada (PGRST204)
-    } else {
-      // Sucesso! Limpa o backup local para este item
-      removeLocalBackup(id);
-    }
+    await supabase.from('work_items').update(pg).eq('id', id);
   };
 
   const addSprint = async (s: Partial<Sprint>) => {
     if (!supabase) return;
     const { data, error } = await supabase.from('sprints').insert([{
-      name: s.name, start_date: s.startDate, end_date: s.endDate, objective: s.objective, status: s.status || 'Planejada'
+      name: s.name, 
+      start_date: s.startDate, 
+      end_date: s.endDate, 
+      objective: s.objective, 
+      status: s.status || 'Planejada'
     }]).select();
     if (!error && data && data.length > 0) setSelectedSprintId(data[0].id);
-    await fetchData();
+    fetchData();
   };
 
   const updateSprint = async (id: string, updates: Partial<Sprint>) => {
     if (!supabase) return;
-    const pg: any = { name: updates.name, start_date: updates.startDate, end_date: updates.endDate, objective: updates.objective, status: updates.status };
+    const pg: any = { 
+      name: updates.name, 
+      start_date: updates.startDate, 
+      end_date: updates.endDate, 
+      objective: updates.objective, 
+      status: updates.status 
+    };
     await supabase.from('sprints').update(pg).eq('id', id);
-    await fetchData();
+    fetchData();
   };
 
   const deleteWorkItem = async (id: string) => {
     if (!supabase) return;
     await supabase.from('work_items').delete().eq('id', id);
-    removeLocalBackup(id);
-    await fetchData();
+    fetchData();
   };
 
   const deleteSprint = async (id: string) => {
@@ -233,7 +202,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     await supabase.from('work_items').update({ sprint_id: null }).eq('sprint_id', id);
     await supabase.from('sprints').delete().eq('id', id);
     if (selectedSprintId === id) setSelectedSprintId(null);
-    await fetchData();
+    fetchData();
   };
 
   const addUser = async (name: string, file?: File) => {
@@ -245,13 +214,13 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (data) avatar_url = supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;
     }
     await supabase.from('profiles').insert([{ name, avatar_url }]);
-    await fetchData();
+    fetchData();
   };
 
   const removeUser = async (id: string) => {
     if (!supabase) return;
     await supabase.from('profiles').delete().eq('id', id);
-    await fetchData();
+    fetchData();
   };
 
   const uploadAttachment = async (itemId: string, file: File) => {

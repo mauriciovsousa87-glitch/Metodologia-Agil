@@ -25,7 +25,6 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
   const [localKpiImpact, setLocalKpiImpact] = useState(item.kpiImpact || '');
   const [localDescription, setLocalDescription] = useState(item.description || '');
 
-  // Sincronizar ao trocar de item
   useEffect(() => {
     setLocalTitle(item.title);
     setLocalKpi(item.kpi || '');
@@ -33,7 +32,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
     setLocalDescription(item.description || '');
   }, [item.id]);
 
-  // AUTO-SAVE: Salva 1s após a última alteração para garantir persistência
+  // AUTO-SAVE DE 1 SEGUNDO
   useEffect(() => {
     const timer = setTimeout(() => {
       const updates: Partial<WorkItem> = {};
@@ -46,7 +45,6 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
         updateWorkItem(item.id, updates);
       }
     }, 1000);
-
     return () => clearTimeout(timer);
   }, [localTitle, localKpi, localKpiImpact, localDescription, item.id]);
 
@@ -55,7 +53,6 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
   };
 
   const handleClose = () => {
-    // Salva pendências finais ao fechar
     const finalUpdates: Partial<WorkItem> = {};
     if (localTitle !== item.title) finalUpdates.title = localTitle;
     if (localKpi !== (item.kpi || '')) finalUpdates.kpi = localKpi;
