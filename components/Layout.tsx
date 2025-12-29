@@ -44,14 +44,23 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
       ? new Date(new Date(lastSprint.endDate).getTime() + 86400000)
       : new Date();
     
-    const end = new Date(start.getTime() + 1209600000); // +14 dias
+    const end = new Date(start.getTime() + 1209600000); 
     
     const startStr = start.toISOString().split('T')[0];
     const endStr = end.toISOString().split('T')[0];
     
+    // NOVO PADRÃO: SPRINT 2025 - MAR - S[N]
+    const year = start.getFullYear();
     const month = start.toLocaleString('pt-BR', { month: 'short' }).toUpperCase().replace('.', '');
-    const weekOfMonth = Math.ceil(start.getDate() / 7);
-    const generatedName = `Sprint 2025 - ${month} - S${weekOfMonth}`;
+    
+    // Contar quantas sprints já existem para este mês/ano específico
+    const sprintsThisMonth = sprints.filter(s => {
+      const d = new Date(s.startDate);
+      return d.getMonth() === start.getMonth() && d.getFullYear() === year;
+    });
+
+    const sNumber = sprintsThisMonth.length + 1;
+    const generatedName = `SPRINT ${year} - ${month} - S${sNumber}`;
 
     setNewSprintName(generatedName);
     setNewSprintStart(startStr);
@@ -79,7 +88,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden relative font-sans">
-      {/* Sidebar */}
       <aside className={`bg-slate-900 text-slate-300 transition-all duration-300 flex flex-col shrink-0 z-[100] ${sidebarOpen ? 'w-64' : 'w-16'}`}>
         <div className="h-16 flex items-center border-b border-slate-800 shrink-0">
           {sidebarOpen ? (
@@ -124,17 +132,15 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
             <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white shrink-0">AS</div>
             {sidebarOpen && (
               <div className="ml-3 overflow-hidden">
-                <p className="text-xs font-semibold text-white truncate">Ana Silva</p>
-                <p className="text-[10px] text-slate-400 truncate uppercase tracking-tighter">Project Manager</p>
+                <p className="text-xs font-semibold text-white truncate">Usuário Admin</p>
+                <p className="text-[10px] text-slate-400 truncate uppercase tracking-tighter">Gestão de Projetos</p>
               </div>
             )}
           </div>
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
-        {/* Renderiza a top bar apenas na Sprint page */}
         {activeView === 'Sprints' && (
           <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-end px-6 shrink-0 shadow-sm z-[90] relative">
             <div className="flex items-center gap-6">
@@ -157,7 +163,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
                   )}
                 </button>
 
-                {/* Notification Popover */}
                 {notificationsOpen && (
                   <>
                     <div className="fixed inset-0 z-[199]" onClick={() => setNotificationsOpen(false)}></div>
@@ -197,7 +202,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
           {children}
         </main>
 
-        {/* --- MODAL DE NOVA SPRINT --- */}
         {isSprintModalOpen && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200" onMouseDown={(e) => e.stopPropagation()}>
@@ -207,8 +211,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
                     <Calendar size={24} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-black text-slate-800 uppercase leading-none">Configurar Sprint</h3>
-                    <p className="text-xs text-slate-500 font-medium mt-1">Planeje o próximo ciclo de trabalho</p>
+                    <h3 className="text-lg font-black text-slate-800 uppercase leading-none">Nova Sprint</h3>
+                    <p className="text-xs text-slate-500 font-medium mt-1">Configure o próximo ciclo</p>
                   </div>
                 </div>
                 <button onClick={() => setIsSprintModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-400 transition-colors">
@@ -223,7 +227,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
                     type="text" 
                     autoFocus
                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-3 text-sm font-bold focus:border-blue-500 focus:bg-white transition-all outline-none"
-                    placeholder="Ex: Sprint 2025 - JAN - S1"
+                    placeholder="Ex: SPRINT 2025 - MAR - S1"
                     value={newSprintName}
                     onChange={(e) => setNewSprintName(e.target.value)}
                   />

@@ -2,24 +2,73 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Calendar, Users, Info, Plus, ChevronRight, 
-  LayoutGrid, ListTodo, AlertCircle, Clock, MoreVertical, Trash2, Filter, Layers, Target, Box, X
+  LayoutGrid, ListTodo, AlertCircle, Clock, MoreVertical, Trash2, Filter, Layers, Target, Box, X, Edit, Trash, Loader2
 } from 'lucide-react';
 import { useAgile } from '../../store';
 import { WorkItem, ItemType, BoardColumn, ItemStatus } from '../../types';
 import ItemPanel from '../Backlog/ItemPanel';
 
 const SprintView: React.FC = () => {
-  const { sprints, selectedSprint, setSprint, workItems, users, updateWorkItem, addWorkItem } = useAgile();
+  const { sprints, selectedSprint, setSprint, workItems, users, updateWorkItem, addWorkItem, updateSprint, deleteSprint, loading: globalLoading } = useAgile();
   const [activeTab, setActiveTab] = useState<'backlog' | 'taskboard'>('taskboard');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
-  
-  // Filtros de Hierarquia
-  const [filterWS, setFilterWS] = useState<string>(''); // ID da Frente (Workstream)
-  const [filterInitiative, setFilterInitiative] = useState<string>(''); // ID da Iniciativa
-  const [filterDelivery, setFilterDelivery] = useState<string>(''); // ID da Entrega
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Dados para os Selects (Baseados em WorkItems reais)
+  // Estados para edição
+  const [editName, setEditName] = useState('');
+  const [editStart, setEditStart] = useState('');
+  const [editEnd, setEditEnd] = useState('');
+  const [editObjective, setEditObjective] = useState('');
+  const [editStatus, setEditStatus] = useState<'Planejada' | 'Ativa' | 'Encerrada'>('Planejada');
+
+  const openEditModal = () => {
+    if (selectedSprint) {
+      setEditName(selectedSprint.name);
+      setEditStart(selectedSprint.startDate);
+      setEditEnd(selectedSprint.endDate);
+      setEditObjective(selectedSprint.objective);
+      setEditStatus(selectedSprint.status);
+      setIsEditModalOpen(true);
+    }
+  };
+
+  const handleUpdateSprint = async () => {
+    if (selectedSprint) {
+      await updateSprint(selectedSprint.id, {
+        name: editName,
+        startDate: editStart,
+        endDate: editEnd,
+        objective: editObjective,
+        status: editStatus
+      });
+      setIsEditModalOpen(false);
+    }
+  };
+
+  const handleDeleteSprint = async () => {
+    if (!selectedSprint) return;
+    
+    const confirmMsg = `Deseja realmente excluir a ${selectedSprint.name}?\n\nIsso desvinculará todas as tarefas desta sprint, mas NÃO as excluirá do backlog.`;
+    
+    if (confirm(confirmMsg)) {
+      setIsDeleting(true);
+      try {
+        await deleteSprint(selectedSprint.id);
+        setIsEditModalOpen(false);
+      } catch (err) {
+        console.error("Erro na exclusão via interface:", err);
+      } finally {
+        setIsDeleting(false);
+      }
+    }
+  };
+  
+  const [filterWS, setFilterWS] = useState<string>(''); 
+  const [filterInitiative, setFilterInitiative] = useState<string>(''); 
+  const [filterDelivery, setFilterDelivery] = useState<string>(''); 
+
   const availableFrentes = useMemo(() => 
     workItems.filter(i => i.type === ItemType.WORKSTREAM),
     [workItems]
@@ -48,13 +97,9 @@ const SprintView: React.FC = () => {
     [workItems, selectedSprint]
   );
 
-  // Lógica de Filtragem do Board
   const filteredItems = useMemo(() => {
     return sprintItems.filter(item => {
-      // Filtro de Frente: verifica o workstreamId do item
       if (filterWS && item.workstreamId !== filterWS && item.id !== filterWS) return false;
-      
-      // Filtro de Iniciativa: verifica se o item é a iniciativa ou se o pai/vovô é a iniciativa
       if (filterInitiative) {
         const isSelf = item.id === filterInitiative;
         const isChild = item.parentId === filterInitiative;
@@ -62,14 +107,11 @@ const SprintView: React.FC = () => {
         const isGrandChild = parent?.parentId === filterInitiative;
         if (!isSelf && !isChild && !isGrandChild) return false;
       }
-
-      // Filtro de Entrega
       if (filterDelivery) {
         const isSelf = item.id === filterDelivery;
         const isChild = item.parentId === filterDelivery;
         if (!isSelf && !isChild) return false;
       }
-
       return true;
     });
   }, [sprintItems, filterWS, filterInitiative, filterDelivery, workItems]);
@@ -104,17 +146,20 @@ const SprintView: React.FC = () => {
                 <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Sprint Selecionada</span>
                 <select 
                   className="text-xl font-bold border-none bg-transparent hover:bg-gray-100 rounded p-1 -ml-1 cursor-pointer focus:ring-0"
-                  value={selectedSprint?.id}
+                  value={selectedSprint?.id || ''}
                   onChange={(e) => setSprint(e.target.value)}
                 >
+                  {!selectedSprint && <option value="">Nenhuma Sprint</option>}
                   {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
             </div>
-            <div className={`mt-4 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-              selectedSprint?.status === 'Ativa' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-            }`}>
-              {selectedSprint?.status}
-            </div>
+            {selectedSprint && (
+              <div className={`mt-4 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                selectedSprint?.status === 'Ativa' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+              }`}>
+                {selectedSprint?.status}
+              </div>
+            )}
           </div>
           
           <div className="flex items-center gap-6">
@@ -127,8 +172,12 @@ const SprintView: React.FC = () => {
                  <span className="text-xs font-bold text-gray-700">{Math.round(progress)}%</span>
                </div>
              </div>
-             <button className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm">
-               Encerrar Sprint
+             <button 
+              disabled={!selectedSprint}
+              onClick={openEditModal}
+              className="bg-white border border-gray-300 hover:bg-gray-50 text-slate-800 px-4 py-2 rounded-lg text-sm font-black transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
+             >
+               <Edit size={16} /> EDITAR SPRINT
              </button>
           </div>
         </div>
@@ -200,7 +249,7 @@ const SprintView: React.FC = () => {
 
              <div className="h-6 w-px bg-gray-200"></div>
              <div className="flex items-center gap-4 text-[11px] font-medium text-gray-500">
-               <div className="flex items-center gap-1.5"><Clock size={14}/> {selectedSprint?.startDate} — {selectedSprint?.endDate}</div>
+               <div className="flex items-center gap-1.5"><Clock size={14}/> {selectedSprint?.startDate || '--'} — {selectedSprint?.endDate || '--'}</div>
                {blockedItems > 0 && <div className="flex items-center gap-1.5 text-red-500 font-bold"><AlertCircle size={14}/> {blockedItems} Bloqueios</div>}
              </div>
            </div>
@@ -208,7 +257,12 @@ const SprintView: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-auto custom-scrollbar p-6 bg-slate-50">
-        {activeTab === 'taskboard' ? (
+        {!selectedSprint ? (
+          <div className="h-full flex flex-col items-center justify-center gap-6 opacity-40">
+             <Calendar size={64} className="text-slate-300" />
+             <p className="text-lg font-black text-slate-400 uppercase tracking-widest text-center">Nenhuma Sprint selecionada.<br/><span className="text-sm font-bold">Crie uma nova sprint no topo para começar.</span></p>
+          </div>
+        ) : activeTab === 'taskboard' ? (
           <div className="flex h-full gap-6 min-w-[1200px]">
             {Object.values(BoardColumn).map(col => (
               <div 
@@ -262,11 +316,11 @@ const SprintView: React.FC = () => {
                         <h4 className="text-sm font-bold text-slate-800 leading-tight group-hover:text-blue-700 transition-colors mb-3 line-clamp-2">{item.title}</h4>
                         <div className="flex items-center justify-between pt-3 border-t border-slate-100">
                           <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-slate-200 border border-white flex items-center justify-center text-[10px] font-black text-slate-500 overflow-hidden">
+                            <div className="w-6 h-6 rounded-full bg-slate-200 border border-white flex items-center justify-center text-[10px] font-black text-slate-500 overflow-hidden shadow-sm">
                               {assignee?.avatar_url ? (
                                 <img src={assignee.avatar_url} className="w-full h-full object-cover" alt={assignee.name} />
                               ) : (
-                                assignee?.name ? assignee.name.split(' ').map(n => n[0]).join('') : '?'
+                                <span className="text-[9px]">{assignee?.name ? assignee.name[0] : '?'}</span>
                               )}
                             </div>
                             <span className="text-[10px] font-black text-slate-400">{item.effort} PTS</span>
@@ -309,16 +363,78 @@ const SprintView: React.FC = () => {
                     </div>
                  </div>
                ))}
-               <button onClick={() => addWorkItem({ title: 'Nova Entrega do Backlog', type: ItemType.DELIVERY, sprintId: selectedSprint?.id, column: BoardColumn.NEW, status: ItemStatus.NEW })} className="w-full py-5 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-black text-xs uppercase tracking-widest hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50/30 transition-all flex items-center justify-center gap-2">
-                 <Plus size={20} strokeWidth={3} /> Adicionar Item do Backlog à Sprint
-               </button>
+               {filteredItems.length === 0 && (
+                 <p className="text-center py-10 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Nenhum item vinculado a esta visão.</p>
+               )}
              </div>
           </div>
         )}
       </div>
 
-      {selectedItem && (
-        <ItemPanel item={selectedItem} onClose={() => setSelectedItemId(null)} />
+      {isEditModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 animate-in fade-in">
+            <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
+              <div className="bg-slate-50 p-8 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Configurar Sprint</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Alterar dados da iteração</p>
+                </div>
+                <button onClick={() => setIsEditModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-400 transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-10 space-y-6">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">Título da Iteração</label>
+                  <input type="text" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-black focus:border-blue-500 outline-none" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">Data Início</label>
+                    <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-black focus:border-blue-500 outline-none" value={editStart} onChange={(e) => setEditStart(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">Data Fim</label>
+                    <input type="date" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-black focus:border-blue-500 outline-none" value={editEnd} onChange={(e) => setEditEnd(e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">Status da Sprint</label>
+                  <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-black focus:border-blue-500 outline-none" value={editStatus} onChange={(e) => setEditStatus(e.target.value as any)}>
+                    <option value="Planejada">Planejada</option>
+                    <option value="Ativa">Ativa</option>
+                    <option value="Encerrada">Encerrada</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">Objetivo Macro</label>
+                  <textarea className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-black focus:border-blue-500 outline-none h-24 resize-none" value={editObjective} onChange={(e) => setEditObjective(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="p-8 bg-slate-50 border-t flex gap-4">
+                <button 
+                  disabled={isDeleting}
+                  onClick={handleDeleteSprint} 
+                  className="p-4 bg-white text-red-600 border-2 border-red-100 hover:bg-red-50 rounded-2xl font-black text-[10px] uppercase transition-all flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash size={16}/>}
+                  EXCLUIR SPRINT
+                </button>
+                <div className="flex-1" />
+                <button onClick={() => setIsEditModalOpen(false)} className="px-6 py-4 text-sm font-bold text-slate-500 hover:bg-slate-200 rounded-2xl transition-all">Cancelar</button>
+                <button onClick={handleUpdateSprint} className="px-8 py-4 bg-slate-900 text-white text-sm font-black rounded-2xl shadow-xl hover:bg-slate-800 active:scale-95 transition-all">SALVAR ALTERAÇÕES</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      {selectedItemId && (
+        <ItemPanel item={workItems.find(i => i.id === selectedItemId)!} onClose={() => setSelectedItemId(null)} />
       )}
     </div>
   );

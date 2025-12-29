@@ -21,6 +21,7 @@ interface AgileContextType {
   deleteWorkItem: (id: string) => Promise<void>;
   
   addSprint: (sprint: Partial<Sprint>) => Promise<void>;
+  updateSprint: (id: string, updates: Partial<Sprint>) => Promise<void>;
   deleteSprint: (id: string) => Promise<void>;
 
   addUser: (name: string, avatarFile?: File) => Promise<void>;
@@ -65,7 +66,11 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           status: s.status
         }));
         setSprints(mappedSprints);
-        if (mappedSprints.length > 0 && !selectedSprintId) {
+        
+        // Sincronizar ID selecionado
+        if (selectedSprintId && !mappedSprints.find(s => s.id === selectedSprintId)) {
+          setSelectedSprintId(mappedSprints.length > 0 ? mappedSprints[mappedSprints.length - 1].id : null);
+        } else if (mappedSprints.length > 0 && !selectedSprintId) {
           const active = mappedSprints.find(s => s.status === 'Ativa');
           setSelectedSprintId(active ? active.id : mappedSprints[mappedSprints.length - 1].id);
         }
@@ -79,10 +84,10 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           description: item.description || '',
           priority: item.priority || ItemPriority.P3,
           effort: item.effort || 0,
-          kpi: item.kpi || '', // Mapeando KPI
+          kpi: item.kpi || '',
           assigneeId: item.assignee_id,
           status: item.status || ItemStatus.NEW,
-          column_name: item.column_name || BoardColumn.NEW,
+          column: item.column_name || BoardColumn.NEW,
           parentId: item.parent_id,
           sprintId: item.sprint_id,
           workstreamId: item.workstream_id,
@@ -151,7 +156,6 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (updates.column !== undefined) pg.column_name = updates.column;
     if (updates.blockReason !== undefined) pg.block_reason = updates.blockReason || null;
     
-    // Evitar poluir o payload com campos extras que não existem na tabela
     delete pg.assigneeId; delete pg.startDate; delete pg.endDate;
     delete pg.parentId; delete pg.sprintId; delete pg.workstreamId; 
     delete pg.column; delete pg.blockReason;
@@ -163,13 +167,33 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const addSprint = async (s: Partial<Sprint>) => {
     if (!supabase) return;
-    await supabase.from('sprints').insert([{
+    const { data, error } = await supabase.from('sprints').insert([{
       name: s.name, 
       start_date: s.startDate || null, 
       end_date: s.endDate || null, 
       objective: s.objective || '', 
       status: s.status || 'Planejada'
-    }]);
+    }]).select();
+    
+    if (error) {
+      alert(`Erro ao criar sprint: ${error.message}`);
+    } else if (data && data.length > 0) {
+      setSelectedSprintId(data[0].id);
+    }
+    await fetchData();
+  };
+
+  const updateSprint = async (id: string, updates: Partial<Sprint>) => {
+    if (!supabase) return;
+    const pg: any = {};
+    if (updates.name) pg.name = updates.name;
+    if (updates.startDate) pg.start_date = updates.startDate;
+    if (updates.endDate) pg.end_date = updates.endDate;
+    if (updates.objective !== undefined) pg.objective = updates.objective;
+    if (updates.status) pg.status = updates.status;
+
+    const { error } = await supabase.from('sprints').update(pg).eq('id', id);
+    if (error) alert(`Erro ao atualizar sprint: ${error.message}`);
     await fetchData();
   };
 
@@ -180,9 +204,37 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteSprint = async (id: string) => {
-    if (!supabase) return;
-    await supabase.from('sprints').delete().eq('id', id);
-    await fetchData();
+    if (!supabase || !id) return;
+    try {
+      setLoading(true);
+      // 1. Limpar referências nas tarefas
+      const { error: unlinkError } = await supabase
+        .from('work_items')
+        .update({ sprint_id: null })
+        .eq('sprint_id', id);
+      
+      if (unlinkError) throw unlinkError;
+
+      // 2. Deletar a sprint
+      const { error: delError } = await supabase
+        .from('sprints')
+        .delete()
+        .eq('id', id);
+
+      if (delError) throw delError;
+
+      // 3. Resetar seleção local IMEDIATAMENTE
+      if (selectedSprintId === id) {
+        setSelectedSprintId(null);
+      }
+
+      await fetchData();
+    } catch (err: any) {
+      console.error("Erro Crítico ao Deletar Sprint:", err);
+      alert(`ERRO AO DELETAR: ${err.message || 'Verifique as permissões do banco.'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const addUser = async (name: string, file?: File) => {
@@ -207,19 +259,11 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const uploadAttachment = async (itemId: string, file: File) => {
     if (!supabase) return;
     const path = `attachments/${itemId}/${Date.now()}-${file.name}`;
-    
     const { data, error } = await supabase.storage.from('attachments').upload(path, file);
-    
     if (error) {
-      console.error("Erro Storage:", error);
-      if (error.message.includes("42501") || error.message.includes("owner")) {
-         alert("Permissão negada. Por favor, execute o script SQL de REPARO no seu Supabase.");
-      } else {
-         alert(`Erro no upload: ${error.message}`);
-      }
+      alert(`Erro no upload: ${error.message}`);
       return;
     }
-
     if (data) {
       const url = supabase.storage.from('attachments').getPublicUrl(path).data.publicUrl;
       const item = workItems.find(i => i.id === itemId);
@@ -247,7 +291,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <AgileContext.Provider value={{
       sprints, workItems, users, loading, configured: isSupabaseConfigured,
       selectedSprint, setSprint: setSelectedSprintId,
-      addWorkItem, updateWorkItem, deleteWorkItem, addSprint, deleteSprint,
+      addWorkItem, updateWorkItem, deleteWorkItem, addSprint, updateSprint, deleteSprint,
       addUser, removeUser, uploadAttachment, seedData, refreshData: fetchData
     }}>
       {children}

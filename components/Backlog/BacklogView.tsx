@@ -47,7 +47,6 @@ const BacklogView: React.FC = () => {
         let valA: any = a[sortConfig.key] || '';
         let valB: any = b[sortConfig.key] || '';
         
-        // Lógica especial para nomes em vez de IDs
         if (sortConfig.key === 'assigneeId') {
           valA = users.find(u => u.id === a.assigneeId)?.name || '';
           valB = users.find(u => u.id === b.assigneeId)?.name || '';
