@@ -126,7 +126,9 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
             />
           </section>
 
-          <div className="grid grid-cols-2 gap-4 p-5 bg-slate-50 rounded-3xl border border-slate-100">
+          {/* Grid de Informações Organizado */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-4 p-6 bg-slate-50 rounded-3xl border border-slate-100">
+            {/* Linha 1: Status e Prioridade */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Status</label>
               <select className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.status} onChange={(e) => handleUpdate({ status: e.target.value as any })}>
@@ -139,9 +141,11 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
                 {Object.values(ItemPriority).map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
+
+            {/* Linha 2: Responsável e Sprint */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Responsável</label>
-              <select className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.assigneeId} onChange={(e) => handleUpdate({ assigneeId: e.target.value })}>
+              <select className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.assigneeId || ''} onChange={(e) => handleUpdate({ assigneeId: e.target.value })}>
                 <option value="">Não atribuído</option>
                 {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
@@ -153,13 +157,8 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
                 {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Esforço (Fibonacci)</label>
-              <input type="number" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.effort} onChange={(e) => handleUpdate({ effort: Number(e.target.value) })} />
-            </div>
-            <div className="space-y-1.5">
-              {/* Espaçador para alinhar datas na linha de baixo */}
-            </div>
+
+            {/* Linha 3: Datas de Início e Fim */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Data de Início</label>
               <input type="date" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.startDate || ''} onChange={(e) => handleUpdate({ startDate: e.target.value })} />
@@ -167,6 +166,15 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Data de Término</label>
               <input type="date" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.endDate || ''} onChange={(e) => handleUpdate({ endDate: e.target.value })} />
+            </div>
+
+            {/* Linha 4: Esforço */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Esforço (Pts)</label>
+              <input type="number" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.effort} onChange={(e) => handleUpdate({ effort: Number(e.target.value) })} />
+            </div>
+            <div className="flex items-end justify-center pb-2">
+               <span className="text-[9px] font-black text-slate-300 uppercase tracking-tighter">Campos sincronizados com Gantt</span>
             </div>
           </div>
 
