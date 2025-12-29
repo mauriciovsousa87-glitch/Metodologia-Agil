@@ -39,28 +39,30 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
     e.preventDefault();
     e.stopPropagation();
     
+    // Determinar data base (após a última ou hoje)
     const lastSprint = sprints[sprints.length - 1];
-    const start = lastSprint 
+    const baseDate = lastSprint 
       ? new Date(new Date(lastSprint.endDate).getTime() + 86400000)
       : new Date();
     
-    const end = new Date(start.getTime() + 1209600000); 
+    const endDate = new Date(baseDate.getTime() + 1209600000); 
     
-    const startStr = start.toISOString().split('T')[0];
-    const endStr = end.toISOString().split('T')[0];
+    const startStr = baseDate.toISOString().split('T')[0];
+    const endStr = endDate.toISOString().split('T')[0];
     
-    // NOVO PADRÃO: SPRINT 2025 - MAR - S[N]
-    const year = start.getFullYear();
-    const month = start.toLocaleString('pt-BR', { month: 'short' }).toUpperCase().replace('.', '');
+    // PADRÃO SOLICITADO: SPRINT 2025 - MAR - S[N]
+    const year = baseDate.getFullYear();
+    const monthCode = baseDate.toLocaleString('pt-BR', { month: 'short' }).toUpperCase().replace('.', '');
     
-    // Contar quantas sprints já existem para este mês/ano específico
+    // Contar sprints no mesmo mês e ano
     const sprintsThisMonth = sprints.filter(s => {
       const d = new Date(s.startDate);
-      return d.getMonth() === start.getMonth() && d.getFullYear() === year;
+      return d.getMonth() === baseDate.getMonth() && d.getFullYear() === year;
     });
 
-    const sNumber = sprintsThisMonth.length + 1;
-    const generatedName = `SPRINT ${year} - ${month} - S${sNumber}`;
+    // Número sequencial dentro do mês (S1, S2, S3, S4, S5)
+    const sNumber = Math.min(sprintsThisMonth.length + 1, 5);
+    const generatedName = `SPRINT ${year} - ${monthCode} - S${sNumber}`;
 
     setNewSprintName(generatedName);
     setNewSprintStart(startStr);

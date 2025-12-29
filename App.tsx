@@ -7,7 +7,6 @@ import SprintView from './components/Sprints/SprintView';
 import DashboardView from './components/Dashboard/DashboardView';
 import GanttView from './components/Gantt/GanttView';
 import { ViewType } from './types';
-// Fixed missing Info import
 import { Database, Terminal, Copy, Check, RefreshCw, Loader2, Shield, Settings as SettingsIcon, Camera, X, AlertTriangle, Info } from 'lucide-react';
 
 const SetupOverlay: React.FC = () => {
@@ -15,25 +14,69 @@ const SetupOverlay: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const { seedData, loading } = useAgile();
 
-  const sqlCode = `-- CONFIGURAÇÃO DE ACESSO AO STORAGE (ARQUIVOS)
+  const sqlCode = `-- SCRIPT DE CRIAÇÃO TOTAL DO BANCO DE DADOS (AGILE MASTER)
 
--- 1. CRIAR BALDES
+-- 1. TABELA DE PERFIS
+CREATE TABLE IF NOT EXISTS profiles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    avatar_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. TABELA DE SPRINTS
+CREATE TABLE IF NOT EXISTS sprints (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    start_date DATE,
+    end_date DATE,
+    objective TEXT,
+    status TEXT DEFAULT 'Planejada',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. TABELA DE ITENS DE TRABALHO
+CREATE TABLE IF NOT EXISTS work_items (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    priority TEXT DEFAULT 'P3',
+    effort INTEGER DEFAULT 0,
+    kpi TEXT,
+    kpi_impact TEXT,
+    assignee_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+    status TEXT DEFAULT 'Novo',
+    column_name TEXT DEFAULT 'Novo',
+    parent_id TEXT REFERENCES work_items(id) ON DELETE CASCADE,
+    sprint_id UUID REFERENCES sprints(id) ON DELETE SET NULL,
+    workstream_id TEXT REFERENCES work_items(id) ON DELETE SET NULL,
+    blocked BOOLEAN DEFAULT FALSE,
+    block_reason TEXT,
+    start_date DATE,
+    end_date DATE,
+    attachments JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. BUCKETS DE STORAGE
 INSERT INTO storage.buckets (id, name, public) VALUES ('avatars', 'avatars', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('attachments', 'attachments', true) ON CONFLICT (id) DO NOTHING;
 
--- 2. LIBERAR POLÍTICAS (SEM ALTER TABLE PARA EVITAR ERRO 42501)
-DO $$ 
-BEGIN
-    DROP POLICY IF EXISTS "Acesso Publico Inserir" ON storage.objects;
-    DROP POLICY IF EXISTS "Acesso Publico Selecionar" ON storage.objects;
-    DROP POLICY IF EXISTS "Acesso Publico Deletar" ON storage.objects;
-    DROP POLICY IF EXISTS "Acesso Publico Atualizar" ON storage.objects;
+-- 5. PERMISSÕES PÚBLICAS (RLS)
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sprints ENABLE ROW LEVEL SECURITY;
+ALTER TABLE work_items ENABLE ROW LEVEL SECURITY;
 
-    CREATE POLICY "Acesso Publico Inserir" ON storage.objects FOR INSERT WITH CHECK (true);
-    CREATE POLICY "Acesso Publico Selecionar" ON storage.objects FOR SELECT USING (true);
-    CREATE POLICY "Acesso Publico Deletar" ON storage.objects FOR DELETE USING (true);
-    CREATE POLICY "Acesso Publico Atualizar" ON storage.objects FOR UPDATE USING (true) WITH CHECK (true);
-END $$;`;
+DROP POLICY IF EXISTS "Acesso Publico" ON profiles;
+CREATE POLICY "Acesso Publico" ON profiles FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Acesso Publico" ON sprints;
+CREATE POLICY "Acesso Publico" ON sprints FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Acesso Publico" ON work_items;
+CREATE POLICY "Acesso Publico" ON work_items FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Storage Publico" ON storage.objects;
+CREATE POLICY "Storage Publico" ON storage.objects FOR ALL USING (true) WITH CHECK (true);`;
 
   const copySQL = () => {
     navigator.clipboard.writeText(sqlCode);
@@ -45,19 +88,19 @@ END $$;`;
     <div className="fixed inset-0 bg-slate-900 z-[9999] flex items-center justify-center p-4">
       <div className="max-w-xl w-full bg-white rounded-[40px] shadow-2xl overflow-hidden border-8 border-slate-800 p-10 text-center space-y-6">
           <Database size={48} className="mx-auto text-blue-600" />
-          <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">Liberar Arquivos</h2>
-          <p className="text-slate-500 font-bold text-sm uppercase">Copie o script abaixo para permitir upload de PDF e Imagens.</p>
+          <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter text-balance">O Banco de Dados precisa ser criado</h2>
+          <p className="text-slate-500 font-bold text-sm uppercase">Sua instância do Supabase parece estar vazia.</p>
           
           <div className="bg-blue-50 border-2 border-blue-100 rounded-2xl p-4 flex gap-3 text-left">
              <Info size={20} className="text-blue-500 shrink-0" />
              <p className="text-[11px] text-blue-800 font-bold uppercase leading-tight">
-               Este script foi simplificado para evitar erros de "Owner" no Supabase. Execute-o no SQL Editor e recarregue a página.
+               O erro que você viu (relation not exist) confirma que as tabelas não foram criadas. Copie o script abaixo e execute no SQL Editor do Supabase.
              </p>
           </div>
 
           <div className="flex flex-col gap-3">
             <button onClick={() => setShowSQL(!showSQL)} className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-xs uppercase hover:bg-slate-700 transition-all">
-              {showSQL ? 'OCULTAR SQL' : 'VER SCRIPT DE REPARO'}
+              {showSQL ? 'OCULTAR SCRIPT COMPLETO' : 'VER SCRIPT DE CRIAÇÃO'}
             </button>
             {showSQL && (
               <div className="relative">
@@ -70,9 +113,9 @@ END $$;`;
               </div>
             )}
             <div className="flex gap-3">
-              <button onClick={() => window.location.reload()} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-blue-700 transition-all">Recarregar App</button>
+              <button onClick={() => window.location.reload()} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-blue-700 transition-all">Já executei o SQL</button>
               <button onClick={seedData} disabled={loading} className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-emerald-700 disabled:opacity-50 transition-all">
-                {loading ? 'Criando...' : 'Ativar Admin'}
+                {loading ? 'Ativando...' : 'Ativar Admin'}
               </button>
             </div>
           </div>

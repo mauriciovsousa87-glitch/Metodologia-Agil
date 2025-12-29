@@ -2,13 +2,13 @@
 import React, { useState, useMemo } from 'react';
 import { 
   ChevronRight, ChevronDown, Filter, 
-  Plus, PlusCircle, Target, Layers, Trash2, AlertTriangle, BarChart2, ArrowUpDown, Loader2, ChevronUp
+  Plus, PlusCircle, Target, Layers, Trash2, AlertTriangle, BarChart2, ArrowUpDown, Loader2, ChevronUp, Zap
 } from 'lucide-react';
 import { useAgile } from '../../store';
 import { WorkItem, ItemType, ItemStatus } from '../../types';
 import ItemPanel from './ItemPanel';
 
-type SortKey = 'priority' | 'assigneeId' | 'kpi' | 'effort' | 'status' | 'id' | 'title' | 'sprintId';
+type SortKey = 'priority' | 'assigneeId' | 'kpi' | 'kpiImpact' | 'effort' | 'status' | 'id' | 'title' | 'sprintId';
 
 const BacklogView: React.FC = () => {
   const { workItems, users, sprints, addWorkItem, deleteWorkItem } = useAgile();
@@ -215,6 +215,13 @@ const BacklogView: React.FC = () => {
              </div>
           </td>
 
+          <td className="px-4 py-3">
+             <div className="flex items-center gap-1.5">
+               <Zap size={12} className="text-orange-500" />
+               <span className="text-[10px] font-black text-slate-500 truncate">{item.kpiImpact || '-'}</span>
+             </div>
+          </td>
+
           <td className="px-4 py-3 text-xs text-gray-600 font-bold">{totalEffort} pts</td>
           <td className="px-4 py-3 w-32">
             <div className="flex flex-col gap-1.5">
@@ -278,11 +285,12 @@ const BacklogView: React.FC = () => {
           <thead className="bg-slate-50 text-[10px] font-black text-slate-400">
             <tr>
               <SortHeader label="ID" sortKey="id" className="w-24" />
-              <SortHeader label="Título" sortKey="title" className="w-[25%]" />
+              <SortHeader label="Título" sortKey="title" className="w-[20%]" />
               <th className="px-4 py-5 w-48 font-black uppercase tracking-widest sticky top-0 z-10 border-b">Ações</th>
               <SortHeader label="Prio" sortKey="priority" className="w-24 text-center" />
               <SortHeader label="Responsável" sortKey="assigneeId" className="w-44" />
-              <SortHeader label="KPI" sortKey="kpi" className="w-36" />
+              <SortHeader label="KPI" sortKey="kpi" className="w-32" />
+              <SortHeader label="Impacto" sortKey="kpiImpact" className="w-40" />
               <SortHeader label="Esforço" sortKey="effort" className="w-24" />
               <th className="px-4 py-5 w-32 font-black uppercase tracking-widest sticky top-0 z-10 border-b">Progresso</th>
               <SortHeader label="Sprint" sortKey="sprintId" className="w-36" />

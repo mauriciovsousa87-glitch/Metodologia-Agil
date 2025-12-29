@@ -1,8 +1,8 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   X, Trash2, ListTodo, Calendar, AlertCircle, AlertTriangle, 
-  Upload, Download, Paperclip, ChevronRight, Lock, Unlock, AlignLeft, Loader2, ExternalLink, Tag, Target
+  Upload, Download, Paperclip, ChevronRight, Lock, Unlock, AlignLeft, Loader2, ExternalLink, Tag, Target, Zap
 } from 'lucide-react';
 import { WorkItem, ItemPriority, ItemStatus, Attachment } from '../../types';
 import { useAgile } from '../../store';
@@ -19,8 +19,53 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ESTADOS LOCAIS PARA EVITAR TRAVAMENTO DE DIGITAÇÃO
+  const [localTitle, setLocalTitle] = useState(item.title);
+  const [localKpi, setLocalKpi] = useState(item.kpi || '');
+  const [localKpiImpact, setLocalKpiImpact] = useState(item.kpiImpact || '');
+  const [localDescription, setLocalDescription] = useState(item.description || '');
+
+  // Refs para manter os valores atuais acessíveis em funções de fechamento
+  const localKpiRef = useRef(localKpi);
+  const localKpiImpactRef = useRef(localKpiImpact);
+  const localTitleRef = useRef(localTitle);
+  const localDescriptionRef = useRef(localDescription);
+
+  useEffect(() => {
+    localKpiRef.current = localKpi;
+    localKpiImpactRef.current = localKpiImpact;
+    localTitleRef.current = localTitle;
+    localDescriptionRef.current = localDescription;
+  }, [localKpi, localKpiImpact, localTitle, localDescription]);
+
+  // Sincroniza estados locais apenas quando o ID do item muda
+  useEffect(() => {
+    setLocalTitle(item.title);
+    setLocalKpi(item.kpi || '');
+    setLocalKpiImpact(item.kpiImpact || '');
+    setLocalDescription(item.description || '');
+  }, [item.id]);
+
   const handleUpdate = (updates: Partial<WorkItem>) => {
     updateWorkItem(item.id, updates);
+  };
+
+  // Função para salvar tudo que estiver pendente
+  const saveAllPending = () => {
+    const updates: Partial<WorkItem> = {};
+    if (localTitleRef.current !== item.title) updates.title = localTitleRef.current;
+    if (localKpiRef.current !== (item.kpi || '')) updates.kpi = localKpiRef.current;
+    if (localKpiImpactRef.current !== (item.kpiImpact || '')) updates.kpiImpact = localKpiImpactRef.current;
+    if (localDescriptionRef.current !== (item.description || '')) updates.description = localDescriptionRef.current;
+
+    if (Object.keys(updates).length > 0) {
+      handleUpdate(updates);
+    }
+  };
+
+  const handleClose = () => {
+    saveAllPending();
+    onClose();
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,12 +88,9 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
   const handlePaste = async (e: React.ClipboardEvent) => {
     const clipboardData = e.clipboardData;
     if (!clipboardData) return;
-
     const files = clipboardData.files;
     const items = clipboardData.items;
-    
     let fileToUpload: File | null = null;
-
     if (files && files.length > 0) {
       for (let i = 0; i < files.length; i++) {
         if (files[i].type.startsWith('image/')) {
@@ -57,7 +99,6 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
         }
       }
     }
-
     if (!fileToUpload && items) {
       for (let i = 0; i < items.length; i++) {
         if (items[i].type.indexOf("image") !== -1) {
@@ -69,14 +110,11 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
         }
       }
     }
-
     if (fileToUpload) {
       e.preventDefault();
       setIsUploading(true);
       try {
         await uploadAttachment(item.id, fileToUpload);
-      } catch (err) {
-        console.error("Erro ao processar imagem colada:", err);
       } finally {
         setIsUploading(false);
       }
@@ -110,7 +148,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
               {item.type}
             </div>
           </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-900 transition-colors">
+          <button onClick={handleClose} className="p-2 text-slate-400 hover:text-slate-900 transition-colors">
             <X size={24} />
           </button>
         </div>
@@ -121,14 +159,13 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
             <textarea 
               rows={2}
               className="w-full text-2xl font-black text-slate-900 bg-transparent hover:bg-slate-50 focus:bg-white p-2 rounded-xl transition-all outline-none resize-none border-2 border-transparent focus:border-blue-100"
-              value={item.title}
-              onChange={(e) => handleUpdate({ title: e.target.value })}
+              value={localTitle}
+              onChange={(e) => setLocalTitle(e.target.value)}
+              onBlur={() => handleUpdate({ title: localTitle })}
             />
           </section>
 
-          {/* Grid de Informações Organizado */}
           <div className="grid grid-cols-2 gap-x-6 gap-y-4 p-6 bg-slate-50 rounded-3xl border border-slate-100">
-            {/* Linha 1: Status e Prioridade */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Status</label>
               <select className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.status} onChange={(e) => handleUpdate({ status: e.target.value as any })}>
@@ -142,7 +179,6 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
               </select>
             </div>
 
-            {/* Linha 2: Responsável e Sprint */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Responsável</label>
               <select className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.assigneeId || ''} onChange={(e) => handleUpdate({ assigneeId: e.target.value })}>
@@ -158,7 +194,6 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
               </select>
             </div>
 
-            {/* Linha 3: Datas de Início e Fim */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Data de Início</label>
               <input type="date" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.startDate || ''} onChange={(e) => handleUpdate({ startDate: e.target.value })} />
@@ -168,14 +203,34 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
               <input type="date" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.endDate || ''} onChange={(e) => handleUpdate({ endDate: e.target.value })} />
             </div>
 
-            {/* Linha 4: Indicador KPI e Esforço */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Indicador (KPI)</label>
-              <input type="text" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.kpi || ''} onChange={(e) => handleUpdate({ kpi: e.target.value })} placeholder="Ex: % Produtividade" />
+              <input 
+                type="text" 
+                className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" 
+                value={localKpi} 
+                onChange={(e) => setLocalKpi(e.target.value)} 
+                onBlur={() => handleUpdate({ kpi: localKpi })}
+                placeholder="Ex: % Produtividade" 
+              />
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Esforço (Pts)</label>
               <input type="number" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.effort} onChange={(e) => handleUpdate({ effort: Number(e.target.value) })} />
+            </div>
+
+            <div className="col-span-2 space-y-1.5 mt-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                <Zap size={12} className="text-orange-500" /> Impacto no KPI
+              </label>
+              <input 
+                type="text" 
+                className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-3 bg-white shadow-sm" 
+                value={localKpiImpact} 
+                onChange={(e) => setLocalKpiImpact(e.target.value)} 
+                onBlur={() => handleUpdate({ kpiImpact: localKpiImpact })}
+                placeholder="Ex: Iniciativa Vapor Flash no processo Cerveja 2 MJ/HL" 
+              />
             </div>
           </div>
 
@@ -184,25 +239,15 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
               <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
                 <AlignLeft size={16} className="text-slate-400" /> Detalhamento
               </h3>
-              <div className="text-[9px] font-black text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100 animate-pulse uppercase tracking-widest">
-                Ctrl + V Habilitado
-              </div>
             </div>
-            <div className="relative">
-              <textarea 
-                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-6 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:bg-white min-h-[180px] transition-all"
-                placeholder="Descreva as especificações... Você também pode colar imagens aqui."
-                value={item.description || ""}
-                onPaste={handlePaste}
-                onChange={(e) => handleUpdate({ description: e.target.value })}
-              />
-              {isUploading && (
-                <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] rounded-2xl flex flex-col items-center justify-center animate-in fade-in z-20">
-                  <Loader2 size={32} className="text-blue-600 animate-spin mb-2" />
-                  <span className="text-[10px] font-black text-blue-600 uppercase">Processando upload...</span>
-                </div>
-              )}
-            </div>
+            <textarea 
+              className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-6 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:bg-white min-h-[180px] transition-all"
+              placeholder="Descreva as especificações..."
+              value={localDescription}
+              onPaste={handlePaste}
+              onChange={(e) => setLocalDescription(e.target.value)}
+              onBlur={() => handleUpdate({ description: localDescription })}
+            />
           </section>
 
           <section className="space-y-4">
@@ -229,19 +274,14 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
                       ) : (
                         <div className="flex flex-col items-center gap-2 text-slate-400">
                           <Paperclip size={32} />
-                          <span className="text-[10px] font-black uppercase tracking-widest">
-                            {att.type.includes('pdf') ? 'DOCUMENTO PDF' : 'ARQUIVO'}
-                          </span>
+                          <span className="text-[10px] font-black uppercase tracking-widest">ARQUIVO</span>
                         </div>
                       )}
                       <button onClick={(e) => {e.stopPropagation(); removeAttachment(e, att.id)}} className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
                         <Trash2 size={14} />
                       </button>
                     </div>
-                    <div className="p-2.5 bg-white border-t text-[10px] font-bold text-slate-500 truncate flex items-center justify-between">
-                      <span className="truncate">{att.name}</span>
-                      {att.type.includes('pdf') && <ExternalLink size={10} />}
-                    </div>
+                    <div className="p-2.5 bg-white border-t text-[10px] font-bold text-slate-500 truncate">{att.name}</div>
                   </div>
                 ))}
              </div>
@@ -252,7 +292,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
           <button onClick={handleDelete} className={`flex-1 py-4 rounded-2xl text-xs font-black transition-all ${isConfirmingDelete ? 'bg-red-600 text-white animate-pulse' : 'bg-white text-red-600 border-2 border-red-100 hover:bg-red-50'}`}>
             {isConfirmingDelete ? 'CONFIRMAR EXCLUSÃO' : 'EXCLUIR ITEM'}
           </button>
-          <button onClick={onClose} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl text-xs font-black shadow-xl active:scale-95 transition-all">FECHAR DETALHES</button>
+          <button onClick={handleClose} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl text-xs font-black shadow-xl active:scale-95 transition-all">FECHAR DETALHES</button>
         </div>
       </div>
 
@@ -262,23 +302,13 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
              <a href={previewAttachment.url} download target="_blank" onClick={(e) => e.stopPropagation()} className="p-3 bg-white/20 text-white rounded-full hover:bg-white/30 transition-all"><Download size={24}/></a>
              <button onClick={() => setPreviewAttachment(null)} className="p-3 bg-white/20 text-white rounded-full hover:bg-white/30 transition-all"><X size={24}/></button>
           </div>
-          
           <div className="w-full h-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
             {previewAttachment.type.startsWith('image') ? (
               <img src={previewAttachment.url} className="max-w-full max-h-full object-contain shadow-2xl animate-in zoom-in-95 duration-300" alt="Preview" />
             ) : (
-              <div className="bg-white rounded-3xl overflow-hidden w-full h-full max-w-6xl shadow-2xl flex flex-col">
-                <div className="p-4 bg-slate-50 border-b flex items-center justify-between">
-                  <span className="text-sm font-black text-slate-800 uppercase tracking-widest">{previewAttachment.name}</span>
-                  <a href={previewAttachment.url} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
-                    Abrir em nova aba <ExternalLink size={12} />
-                  </a>
-                </div>
-                <iframe 
-                  src={`${previewAttachment.url}#toolbar=0`} 
-                  className="flex-1 w-full border-none" 
-                  title="Document Preview"
-                />
+              <div className="bg-white rounded-3xl overflow-hidden w-full h-full max-w-6xl shadow-2xl flex flex-col p-10">
+                <span className="text-xl font-black text-slate-800 uppercase tracking-widest mb-4">{previewAttachment.name}</span>
+                <iframe src={previewAttachment.url} className="flex-1 w-full border-none rounded-2xl" />
               </div>
             )}
           </div>

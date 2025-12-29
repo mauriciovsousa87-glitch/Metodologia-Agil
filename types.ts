@@ -84,6 +84,7 @@ export interface WorkItem {
   priority: ItemPriority;
   effort: number;
   kpi?: string;
+  kpiImpact?: string;
   assigneeId: string;
   creatorId: string;
   status: ItemStatus;

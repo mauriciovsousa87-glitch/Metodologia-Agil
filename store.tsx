@@ -67,7 +67,6 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }));
         setSprints(mappedSprints);
         
-        // Sincronizar ID selecionado
         if (selectedSprintId && !mappedSprints.find(s => s.id === selectedSprintId)) {
           setSelectedSprintId(mappedSprints.length > 0 ? mappedSprints[mappedSprints.length - 1].id : null);
         } else if (mappedSprints.length > 0 && !selectedSprintId) {
@@ -85,6 +84,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           priority: item.priority || ItemPriority.P3,
           effort: item.effort || 0,
           kpi: item.kpi || '',
+          kpiImpact: item.kpi_impact || '',
           assigneeId: item.assignee_id,
           status: item.status || ItemStatus.NEW,
           column: item.column_name || BoardColumn.NEW,
@@ -129,6 +129,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       priority: item.priority || ItemPriority.P3,
       effort: item.effort || 0,
       kpi: item.kpi || '',
+      kpi_impact: item.kpiImpact || '',
       assignee_id: item.assigneeId || null,
       status: item.status || ItemStatus.NEW,
       column_name: item.column || BoardColumn.NEW,
@@ -146,7 +147,24 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateWorkItem = async (id: string, updates: Partial<WorkItem>) => {
     if (!supabase) return;
-    const pg: any = { ...updates };
+
+    // 1. ATUALIZAÇÃO OTIMISTA: Muda a tela na hora
+    setWorkItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
+
+    // 2. PREPARAR PAYLOAD (Chaves devem ser minúsculas para o Postgres unquoted)
+    const pg: any = {};
+    if (updates.title !== undefined) pg.title = updates.title;
+    if (updates.description !== undefined) pg.description = updates.description;
+    if (updates.priority !== undefined) pg.priority = updates.priority;
+    if (updates.effort !== undefined) pg.effort = updates.effort;
+    if (updates.status !== undefined) pg.status = updates.status;
+    if (updates.blocked !== undefined) pg.blocked = updates.blocked;
+    if (updates.attachments !== undefined) pg.attachments = updates.attachments;
+    
+    // Mapeamento explícito para as colunas de KPI
+    if (updates.kpi !== undefined) pg.kpi = updates.kpi;
+    if (updates.kpiImpact !== undefined) pg.kpi_impact = updates.kpiImpact;
+    
     if (updates.assigneeId !== undefined) pg.assignee_id = updates.assigneeId || null;
     if (updates.startDate !== undefined) pg.start_date = updates.startDate || null;
     if (updates.endDate !== undefined) pg.end_date = updates.endDate || null;
@@ -155,14 +173,21 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (updates.workstreamId !== undefined) pg.workstream_id = updates.workstreamId || null;
     if (updates.column !== undefined) pg.column_name = updates.column;
     if (updates.blockReason !== undefined) pg.block_reason = updates.blockReason || null;
-    
-    delete pg.assigneeId; delete pg.startDate; delete pg.endDate;
-    delete pg.parentId; delete pg.sprintId; delete pg.workstreamId; 
-    delete pg.column; delete pg.blockReason;
 
+    // 3. ENVIAR PARA O SUPABASE
     const { error } = await supabase.from('work_items').update(pg).eq('id', id);
-    if (error) console.error("Erro ao atualizar item:", error);
-    await fetchData();
+    
+    if (error) {
+      console.error("Erro no Supabase:", error);
+      
+      // Se for erro de coluna não encontrada (PGRST204 ou 42703)
+      if (error.code === 'PGRST204' || error.code === '42703') {
+        alert("O Supabase ainda não reconheceu as colunas de KPI. Por favor, execute o script SQL de 'Reset de Força' e recarregue a página.");
+      } else {
+        // Para outros erros, tentamos reverter o estado buscando do banco
+        fetchData();
+      }
+    }
   };
 
   const addSprint = async (s: Partial<Sprint>) => {
@@ -207,31 +232,15 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!supabase || !id) return;
     try {
       setLoading(true);
-      // 1. Limpar referências nas tarefas
-      const { error: unlinkError } = await supabase
-        .from('work_items')
-        .update({ sprint_id: null })
-        .eq('sprint_id', id);
-      
-      if (unlinkError) throw unlinkError;
-
-      // 2. Deletar a sprint
-      const { error: delError } = await supabase
-        .from('sprints')
-        .delete()
-        .eq('id', id);
-
-      if (delError) throw delError;
-
-      // 3. Resetar seleção local IMEDIATAMENTE
-      if (selectedSprintId === id) {
-        setSelectedSprintId(null);
-      }
-
+      await supabase.from('work_items').update({ sprint_id: null }).eq('sprint_id', id);
+      const { error } = await supabase.from('sprints').delete().eq('id', id);
+      if (error) throw error;
+      setSprints(prev => prev.filter(s => s.id !== id));
+      if (selectedSprintId === id) setSelectedSprintId(null);
       await fetchData();
     } catch (err: any) {
-      console.error("Erro Crítico ao Deletar Sprint:", err);
-      alert(`ERRO AO DELETAR: ${err.message || 'Verifique as permissões do banco.'}`);
+      console.error("Erro ao deletar sprint:", err);
+      alert(`Falha na exclusão: ${err.message}`);
     } finally {
       setLoading(false);
     }
