@@ -148,10 +148,9 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const updateWorkItem = async (id: string, updates: Partial<WorkItem>) => {
     if (!supabase) return;
 
-    // 1. ATUALIZAÇÃO OTIMISTA: Muda a tela na hora
+    // Atualização otimista
     setWorkItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
 
-    // 2. PREPARAR PAYLOAD (Chaves devem ser minúsculas para o Postgres unquoted)
     const pg: any = {};
     if (updates.title !== undefined) pg.title = updates.title;
     if (updates.description !== undefined) pg.description = updates.description;
@@ -160,11 +159,8 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (updates.status !== undefined) pg.status = updates.status;
     if (updates.blocked !== undefined) pg.blocked = updates.blocked;
     if (updates.attachments !== undefined) pg.attachments = updates.attachments;
-    
-    // Mapeamento explícito para as colunas de KPI
     if (updates.kpi !== undefined) pg.kpi = updates.kpi;
     if (updates.kpiImpact !== undefined) pg.kpi_impact = updates.kpiImpact;
-    
     if (updates.assigneeId !== undefined) pg.assignee_id = updates.assigneeId || null;
     if (updates.startDate !== undefined) pg.start_date = updates.startDate || null;
     if (updates.endDate !== undefined) pg.end_date = updates.endDate || null;
@@ -174,19 +170,13 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (updates.column !== undefined) pg.column_name = updates.column;
     if (updates.blockReason !== undefined) pg.block_reason = updates.blockReason || null;
 
-    // 3. ENVIAR PARA O SUPABASE
     const { error } = await supabase.from('work_items').update(pg).eq('id', id);
-    
     if (error) {
-      console.error("Erro no Supabase:", error);
-      
-      // Se for erro de coluna não encontrada (PGRST204 ou 42703)
-      if (error.code === 'PGRST204' || error.code === '42703') {
-        alert("O Supabase ainda não reconheceu as colunas de KPI. Por favor, execute o script SQL de 'Reset de Força' e recarregue a página.");
-      } else {
-        // Para outros erros, tentamos reverter o estado buscando do banco
-        fetchData();
-      }
+       console.error("Erro no Supabase:", error);
+       if (error.code === 'PGRST204' || error.code === '42703') {
+         alert("O banco de dados não encontrou as colunas de KPI. Por favor, execute o script de atualização no Setup.");
+       }
+       fetchData(); // Sincroniza em caso de erro
     }
   };
 
@@ -200,11 +190,8 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       status: s.status || 'Planejada'
     }]).select();
     
-    if (error) {
-      alert(`Erro ao criar sprint: ${error.message}`);
-    } else if (data && data.length > 0) {
-      setSelectedSprintId(data[0].id);
-    }
+    if (error) alert(`Erro ao criar sprint: ${error.message}`);
+    else if (data && data.length > 0) setSelectedSprintId(data[0].id);
     await fetchData();
   };
 
@@ -235,11 +222,9 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await supabase.from('work_items').update({ sprint_id: null }).eq('sprint_id', id);
       const { error } = await supabase.from('sprints').delete().eq('id', id);
       if (error) throw error;
-      setSprints(prev => prev.filter(s => s.id !== id));
       if (selectedSprintId === id) setSelectedSprintId(null);
       await fetchData();
     } catch (err: any) {
-      console.error("Erro ao deletar sprint:", err);
       alert(`Falha na exclusão: ${err.message}`);
     } finally {
       setLoading(false);
@@ -251,8 +236,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     let avatar_url = null;
     if (file) {
       const path = `avatars/${Date.now()}-${file.name}`;
-      const { data, error } = await supabase.storage.from('avatars').upload(path, file);
-      if (error) console.error("Erro upload avatar:", error.message);
+      const { data } = await supabase.storage.from('avatars').upload(path, file);
       if (data) avatar_url = supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;
     }
     await supabase.from('profiles').insert([{ name, avatar_url }]);

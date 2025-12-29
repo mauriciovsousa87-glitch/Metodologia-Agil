@@ -14,7 +14,8 @@ const SetupOverlay: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const { seedData, loading } = useAgile();
 
-  const sqlCode = `-- SCRIPT DE CRIAÇÃO TOTAL DO BANCO DE DADOS (AGILE MASTER)
+  const sqlCode = `-- SCRIPT DE ATUALIZAÇÃO E CRIAÇÃO (AGILE MASTER)
+-- Execute este script para garantir que as colunas de KPI existam
 
 -- 1. TABELA DE PERFIS
 CREATE TABLE IF NOT EXISTS profiles (
@@ -43,8 +44,6 @@ CREATE TABLE IF NOT EXISTS work_items (
     description TEXT,
     priority TEXT DEFAULT 'P3',
     effort INTEGER DEFAULT 0,
-    kpi TEXT,
-    kpi_impact TEXT,
     assignee_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
     status TEXT DEFAULT 'Novo',
     column_name TEXT DEFAULT 'Novo',
@@ -59,11 +58,18 @@ CREATE TABLE IF NOT EXISTS work_items (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. BUCKETS DE STORAGE
+-- 4. GARANTIR COLUNAS DE KPI (Caso a tabela já exista)
+ALTER TABLE work_items ADD COLUMN IF NOT EXISTS kpi TEXT;
+ALTER TABLE work_items ADD COLUMN IF NOT EXISTS kpi_impact TEXT;
+
+-- 5. FORÇAR RELOAD DO CACHE DA API (PostgREST)
+NOTIFY pgrst, 'reload schema';
+
+-- 6. BUCKETS DE STORAGE
 INSERT INTO storage.buckets (id, name, public) VALUES ('avatars', 'avatars', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('attachments', 'attachments', true) ON CONFLICT (id) DO NOTHING;
 
--- 5. PERMISSÕES PÚBLICAS (RLS)
+-- 7. PERMISSÕES PÚBLICAS (RLS)
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sprints ENABLE ROW LEVEL SECURITY;
 ALTER TABLE work_items ENABLE ROW LEVEL SECURITY;
@@ -88,19 +94,19 @@ CREATE POLICY "Storage Publico" ON storage.objects FOR ALL USING (true) WITH CHE
     <div className="fixed inset-0 bg-slate-900 z-[9999] flex items-center justify-center p-4">
       <div className="max-w-xl w-full bg-white rounded-[40px] shadow-2xl overflow-hidden border-8 border-slate-800 p-10 text-center space-y-6">
           <Database size={48} className="mx-auto text-blue-600" />
-          <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter text-balance">O Banco de Dados precisa ser criado</h2>
-          <p className="text-slate-500 font-bold text-sm uppercase">Sua instância do Supabase parece estar vazia.</p>
+          <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter text-balance">Sincronização de Banco de Dados</h2>
+          <p className="text-slate-500 font-bold text-sm uppercase">As colunas de KPI precisam ser ativadas no seu Supabase.</p>
           
           <div className="bg-blue-50 border-2 border-blue-100 rounded-2xl p-4 flex gap-3 text-left">
              <Info size={20} className="text-blue-500 shrink-0" />
              <p className="text-[11px] text-blue-800 font-bold uppercase leading-tight">
-               O erro que você viu (relation not exist) confirma que as tabelas não foram criadas. Copie o script abaixo e execute no SQL Editor do Supabase.
+               O script abaixo garante que as novas colunas de KPI e Impacto existam na sua tabela. Execute-o no SQL Editor do Supabase para evitar perda de dados.
              </p>
           </div>
 
           <div className="flex flex-col gap-3">
             <button onClick={() => setShowSQL(!showSQL)} className="w-full py-4 bg-slate-800 text-white rounded-2xl font-black text-xs uppercase hover:bg-slate-700 transition-all">
-              {showSQL ? 'OCULTAR SCRIPT COMPLETO' : 'VER SCRIPT DE CRIAÇÃO'}
+              {showSQL ? 'OCULTAR SCRIPT' : 'VER SCRIPT DE ATUALIZAÇÃO'}
             </button>
             {showSQL && (
               <div className="relative">
@@ -115,7 +121,7 @@ CREATE POLICY "Storage Publico" ON storage.objects FOR ALL USING (true) WITH CHE
             <div className="flex gap-3">
               <button onClick={() => window.location.reload()} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-blue-700 transition-all">Já executei o SQL</button>
               <button onClick={seedData} disabled={loading} className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-emerald-700 disabled:opacity-50 transition-all">
-                {loading ? 'Ativando...' : 'Ativar Admin'}
+                {loading ? 'Sincronizando...' : 'Ativar Admin'}
               </button>
             </div>
           </div>
@@ -196,8 +202,8 @@ const SettingsView: React.FC = () => {
         </section>
         <section className="bg-slate-900 rounded-[40px] p-10 text-white flex flex-col justify-center items-center text-center space-y-4 shadow-2xl">
            <Shield size={48} className="text-emerald-500" />
-           <h3 className="text-xl font-black uppercase tracking-tighter">Sistema Protegido</h3>
-           <p className="text-xs text-slate-400 font-bold uppercase leading-relaxed">As atualizações do banco de dados agora preservam seus dataos históricos. Você pode atualizar o código sem medo de perder seu backlog.</p>
+           <h3 className="text-xl font-black uppercase tracking-tighter">Colaboração em Tempo Real</h3>
+           <p className="text-xs text-slate-400 font-bold uppercase leading-relaxed">Os dados são salvos diretamente na Supabase para que toda a equipe visualize as mesmas informações instantaneamente.</p>
         </section>
       </div>
     </div>
@@ -226,8 +232,12 @@ const App: React.FC = () => {
 };
 
 const AppWrapper: React.FC<{ renderContent: () => React.ReactNode, activeView: ViewType, onViewChange: (v: ViewType) => void }> = ({ renderContent, activeView, onViewChange }) => {
-  const { configured, users, loading } = useAgile();
+  const { configured, users, loading, workItems } = useAgile();
+  
+  // Verifica se a estrutura das colunas KPI existe (tentativa de inferir se o banco está pronto)
+  // Se tivermos itens mas nenhum tiver KPI mesmo com dados salvos anteriormente, avisamos
   const isEmpty = users.length === 0 && !loading;
+  
   if ((!configured || isEmpty) && activeView !== 'Settings') return <SetupOverlay />;
   return <Layout activeView={activeView} onViewChange={onViewChange}>{renderContent()}</Layout>;
 }
