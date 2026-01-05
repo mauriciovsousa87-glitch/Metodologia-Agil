@@ -30,6 +30,7 @@ interface AgileContextType {
   uploadAttachment: (itemId: string, file: File) => Promise<void>;
   seedData: () => Promise<void>;
   refreshData: () => Promise<void>;
+  syncTasksWithSprints: () => Promise<void>;
 }
 
 const AgileContext = createContext<AgileContextType | undefined>(undefined);
@@ -114,9 +115,37 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => { supabase.removeChannel(channel); };
   }, [fetchData]);
 
+  const findSprintForDate = (dateStr: string | undefined): string | null => {
+    if (!dateStr || sprints.length === 0) return null;
+    const target = new Date(dateStr + 'T12:00:00');
+    const matched = sprints.find(s => {
+      const start = new Date(s.startDate + 'T00:00:00');
+      const end = new Date(s.endDate + 'T23:59:59');
+      return target >= start && target <= end;
+    });
+    return matched ? matched.id : null;
+  };
+
+  const syncTasksWithSprints = async () => {
+    if (!supabase) return;
+    const tasksToSync = workItems.filter(i => i.type === ItemType.TASK && i.endDate);
+    
+    for (const task of tasksToSync) {
+      const targetSprintId = findSprintForDate(task.endDate);
+      if (targetSprintId !== task.sprintId) {
+        await supabase.from('work_items').update({ sprint_id: targetSprintId }).eq('id', task.id);
+      }
+    }
+    await fetchData();
+  };
+
   const addWorkItem = async (item: Partial<WorkItem>) => {
     if (!supabase) return;
     const id = `A-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+    let autoSprintId = item.sprintId || null;
+    if (item.type === ItemType.TASK && item.endDate) {
+      autoSprintId = findSprintForDate(item.endDate);
+    }
     const payload = {
       id,
       type: item.type || ItemType.DELIVERY,
@@ -127,8 +156,11 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       column_name: item.column || BoardColumn.NEW,
       status: item.status || ItemStatus.NEW,
       parent_id: item.parentId || null,
-      sprint_id: item.sprintId || null,
-      workstream_id: item.workstreamId || null
+      sprint_id: autoSprintId,
+      workstream_id: item.workstreamId || null,
+      start_date: item.startDate || null,
+      end_date: item.endDate || null,
+      assignee_id: item.assigneeId || null
     };
     await supabase.from('work_items').insert([payload]);
     fetchData();
@@ -136,8 +168,19 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateWorkItem = async (id: string, updates: Partial<WorkItem>) => {
     if (!supabase) return;
+    const currentItem = workItems.find(i => i.id === id);
+    const itemType = updates.type || currentItem?.type;
 
-    // Atualização Visual Otimista (Pra ficar instantâneo na tela)
+    if (itemType === ItemType.TASK) {
+      const finalEndDate = updates.endDate !== undefined ? updates.endDate : currentItem?.endDate;
+      if (finalEndDate) {
+        const autoSprintId = findSprintForDate(finalEndDate);
+        updates.sprintId = autoSprintId || undefined;
+      } else if (updates.endDate === null || updates.endDate === '') {
+        updates.sprintId = undefined;
+      }
+    }
+
     setWorkItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
 
     const pg: any = {};
@@ -147,16 +190,19 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (updates.effort !== undefined) pg.effort = updates.effort;
     if (updates.status !== undefined) pg.status = updates.status;
     if (updates.blocked !== undefined) pg.blocked = updates.blocked;
-    
-    // Mapeamento direto para o Banco
     if (updates.kpi !== undefined) pg.kpi = updates.kpi;
     if (updates.kpiImpact !== undefined) pg.kpi_impact = updates.kpiImpact;
-    
     if (updates.assigneeId !== undefined) pg.assignee_id = updates.assigneeId || null;
     if (updates.startDate !== undefined) pg.start_date = updates.startDate || null;
     if (updates.endDate !== undefined) pg.end_date = updates.endDate || null;
     if (updates.parentId !== undefined) pg.parent_id = updates.parentId || null;
-    if (updates.sprintId !== undefined) pg.sprint_id = updates.sprintId || null;
+    
+    if (updates.sprintId !== undefined) {
+      pg.sprint_id = updates.sprintId || null;
+    } else if (itemType === ItemType.TASK && updates.endDate !== undefined) {
+      pg.sprint_id = findSprintForDate(updates.endDate) || null;
+    }
+
     if (updates.workstreamId !== undefined) pg.workstream_id = updates.workstreamId || null;
     if (updates.column !== undefined) pg.column_name = updates.column;
     if (updates.blockReason !== undefined) pg.block_reason = updates.blockReason || null;
@@ -244,7 +290,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       sprints, workItems, users, loading, configured: isSupabaseConfigured,
       selectedSprint, setSprint: setSelectedSprintId,
       addWorkItem, updateWorkItem, deleteWorkItem, addSprint, updateSprint, deleteSprint,
-      addUser, removeUser, uploadAttachment, seedData, refreshData: fetchData
+      addUser, removeUser, uploadAttachment, seedData, refreshData: fetchData, syncTasksWithSprints
     }}>
       {children}
     </AgileContext.Provider>

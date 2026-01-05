@@ -16,9 +16,8 @@ export enum ItemPriority {
 
 export enum ItemStatus {
   NEW = 'Novo',
-  ACTIVE = 'Ativo',
-  RESOLVED = 'Resolvido',
-  CLOSED = 'Fechado'
+  IN_PROGRESS = 'Em andamento',
+  CLOSED = 'Concluído'
 }
 
 export enum BoardColumn {

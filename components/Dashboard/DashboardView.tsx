@@ -12,15 +12,13 @@ import { useAgile } from '../../store';
 import { ItemStatus, ItemType } from '../../types';
 
 const DashboardView: React.FC = () => {
-  // Fix: Removed 'workstreams' as it is not present in AgileContextType; workstreams are managed as workItems of type WORKSTREAM.
   const { workItems, sprints, users } = useAgile();
 
   // Metrics Logic
   const statusData = [
     { name: 'Novo', value: workItems.filter(i => i.status === ItemStatus.NEW).length, color: '#94a3b8' },
-    { name: 'Ativo', value: workItems.filter(i => i.status === ItemStatus.ACTIVE).length, color: '#3b82f6' },
-    { name: 'Resolvido', value: workItems.filter(i => i.status === ItemStatus.RESOLVED).length, color: '#f59e0b' },
-    { name: 'Fechado', value: workItems.filter(i => i.status === ItemStatus.CLOSED).length, color: '#10b981' },
+    { name: 'Em andamento', value: workItems.filter(i => i.status === ItemStatus.IN_PROGRESS).length, color: '#f59e0b' },
+    { name: 'Concluído', value: workItems.filter(i => i.status === ItemStatus.CLOSED).length, color: '#10b981' },
   ];
 
   const velocityData = sprints.map(s => {
@@ -59,7 +57,7 @@ const DashboardView: React.FC = () => {
           { label: 'Total de Itens', value: workItems.length, icon: Activity, color: 'blue' },
           { label: 'Sprints Ativas', value: sprints.filter(s => s.status === 'Ativa').length, icon: Target, color: 'green' },
           { label: 'Itens Bloqueados', value: blockedItems.length, icon: AlertTriangle, color: 'red' },
-          { label: 'Taxa de Entrega', value: `${Math.round((workItems.filter(i => i.status === ItemStatus.CLOSED).length / workItems.length) * 100)}%`, icon: CheckCircle2, color: 'purple' },
+          { label: 'Taxa de Entrega', value: workItems.length > 0 ? `${Math.round((workItems.filter(i => i.status === ItemStatus.CLOSED).length / workItems.length) * 100)}%` : '0%', icon: CheckCircle2, color: 'purple' },
         ].map((stat, i) => (
           <div key={i} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all">
             <div>
@@ -73,7 +71,6 @@ const DashboardView: React.FC = () => {
         ))}
       </div>
 
-      {/* Main Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
           <h3 className="text-lg font-bold text-gray-800 mb-8 flex items-center gap-2">
@@ -118,45 +115,6 @@ const DashboardView: React.FC = () => {
                 <Legend layout="vertical" align="right" verticalAlign="middle" />
               </PieChart>
             </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-8">
-        <div className="lg:col-span-2 bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-bold text-gray-800 mb-6">Carga por Responsável</h3>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart layout="vertical" data={itemsByAssignee}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" fontSize={12} axisLine={false} />
-                <YAxis dataKey="name" type="category" fontSize={12} axisLine={false} width={100} />
-                <Tooltip />
-                <Bar dataKey="total" fill="#93c5fd" radius={[0, 4, 4, 0]} name="Total de Itens" />
-                <Bar dataKey="concluidos" fill="#10b981" radius={[0, 4, 4, 0]} name="Concluídos" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-bold text-gray-800 mb-6">Top Blockers</h3>
-          <div className="space-y-4">
-            {blockedItems.length === 0 ? (
-              <p className="text-sm text-gray-400 italic">Nenhum item bloqueado no momento.</p>
-            ) : (
-              blockedItems.map(item => (
-                <div key={item.id} className="p-4 bg-red-50 rounded-xl border border-red-100 group cursor-pointer hover:bg-red-100 transition-all">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-bold text-red-700 uppercase">BLOQUEADO - {item.id}</span>
-                    <Clock size={12} className="text-red-400" />
-                  </div>
-                  <h4 className="text-sm font-bold text-gray-800 group-hover:text-red-700">{item.title}</h4>
-                  <p className="text-xs text-red-600 mt-1">{item.blockReason || 'Motivo não especificado'}</p>
-                </div>
-              ))
-            )}
           </div>
         </div>
       </div>

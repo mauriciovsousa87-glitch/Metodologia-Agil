@@ -33,7 +33,7 @@ const BacklogView: React.FC = () => {
       effort: 60,
       progress: 80,
       sprint: 120,
-      status: 80,
+      status: 100,
       del: 40
     };
   });
@@ -106,7 +106,8 @@ const BacklogView: React.FC = () => {
       await addWorkItem({ 
         title: `Novo(a) ${type}`, type, parentId,
         workstreamId: parent?.type === ItemType.WORKSTREAM ? parent.id : parent?.workstreamId,
-        assigneeId: parent?.assigneeId
+        assigneeId: parent?.assigneeId,
+        status: ItemStatus.NEW
       });
       if (!expandedItems.has(parentId)) toggleExpand(parentId);
     } finally { setIsProcessing(null); }
@@ -208,7 +209,11 @@ const BacklogView: React.FC = () => {
           </td>
           <td className="px-2 py-2 text-[10px] text-gray-500 truncate font-medium" style={{ width: colWidths.sprint }}>{sprint?.name || '-'}</td>
           <td className="px-2 py-2 text-center" style={{ width: colWidths.status }}>
-            <span className={`px-1 py-0.5 rounded text-[8px] font-black border ${item.status === ItemStatus.CLOSED ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>{item.status}</span>
+            <span className={`px-2 py-0.5 rounded text-[8px] font-black border uppercase tracking-widest ${
+              item.status === ItemStatus.CLOSED ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 
+              item.status === ItemStatus.IN_PROGRESS ? 'bg-amber-100 text-amber-700 border-amber-200' :
+              'bg-slate-100 text-slate-500 border-slate-200'
+            }`}>{item.status}</span>
           </td>
           <td className="px-2 py-2 text-right" style={{ width: colWidths.del }}>
              <button onClick={(e) => { e.stopPropagation(); if(armDeleteId === item.id) deleteWorkItem(item.id); else setArmDeleteId(item.id); }} className={`p-1 rounded ${armDeleteId === item.id ? 'bg-red-600 text-white' : 'text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100'}`}><Trash2 size={12} /></button>
