@@ -113,17 +113,44 @@ const BacklogView: React.FC = () => {
   };
 
   const calculateRollup = (item: WorkItem) => {
-    const descendants: WorkItem[] = [];
-    const stack = [...workItems.filter(i => i.parentId === item.id)];
-    while (stack.length > 0) {
-      const current = stack.pop()!;
-      descendants.push(current);
-      stack.push(...workItems.filter(i => i.parentId === current.id));
+    // Se for tarefa, o progresso é dele mesmo
+    if (item.type === ItemType.TASK || item.type === ItemType.BUG) {
+      return { totalEffort: item.effort || 0, progress: item.status === ItemStatus.CLOSED ? 100 : 0 };
     }
-    if (descendants.length === 0) return { totalEffort: item.effort || 0, progress: item.status === ItemStatus.CLOSED ? 100 : 0 };
+
+    const getAllTasks = (id: string): WorkItem[] => {
+      let tasks: WorkItem[] = [];
+      const children = workItems.filter(i => i.parentId === id);
+      children.forEach(child => {
+        if (child.type === ItemType.TASK || child.type === ItemType.BUG) {
+          tasks.push(child);
+        } else {
+          tasks = [...tasks, ...getAllTasks(child.id)];
+        }
+      });
+      return tasks;
+    };
+
+    const descendants = getAllTasks(item.id);
+    
+    if (descendants.length === 0) {
+      // Fallback: se não tem tarefas mas o item pai está fechado
+      return { totalEffort: 0, progress: item.status === ItemStatus.CLOSED ? 100 : 0 };
+    }
+
     const totalEffort = descendants.reduce((acc, curr) => acc + (curr.effort || 0), 0);
-    const completedEffort = descendants.filter(i => i.status === ItemStatus.CLOSED).reduce((acc, curr) => acc + (curr.effort || 0), 0);
-    return { totalEffort, progress: totalEffort > 0 ? (completedEffort / totalEffort) * 100 : 0 };
+    const completedEffort = descendants
+      .filter(i => i.status === ItemStatus.CLOSED)
+      .reduce((acc, curr) => acc + (curr.effort || 0), 0);
+
+    // Se as tarefas não tiverem pontos, calculamos por contagem simples
+    if (totalEffort === 0) {
+      const countTotal = descendants.length;
+      const countDone = descendants.filter(i => i.status === ItemStatus.CLOSED).length;
+      return { totalEffort: 0, progress: (countDone / countTotal) * 100 };
+    }
+
+    return { totalEffort, progress: (completedEffort / totalEffort) * 100 };
   };
 
   const getItemSigla = (type: ItemType) => {
@@ -202,7 +229,9 @@ const BacklogView: React.FC = () => {
           <td className="px-2 py-2" style={{ width: colWidths.progress }}>
             <div className="flex flex-col gap-0.5">
               <span className="text-[7px] font-black text-slate-400">{Math.round(progress)}%</span>
-              <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden"><div className="h-full bg-blue-500" style={{ width: `${progress}%` }} /></div>
+              <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden">
+                <div className={`h-full transition-all duration-500 ${progress === 100 ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${progress}%` }} />
+              </div>
             </div>
           </td>
           <td className="px-2 py-2 text-[10px] text-gray-500 truncate font-medium" style={{ width: colWidths.sprint }}>{sprint?.name || '-'}</td>
