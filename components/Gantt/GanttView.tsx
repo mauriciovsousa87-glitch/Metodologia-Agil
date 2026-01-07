@@ -7,15 +7,30 @@ import { Info, Calendar as CalendarIcon, ChevronRight, Layers, Target, CheckSqua
 const GanttView: React.FC = () => {
   const { workItems, users } = useAgile();
   
-  const [selectedWS, setSelectedWS] = useState<string>('');
-  const [selectedInitiatives, setSelectedInitiatives] = useState<string[]>([]);
+  const [selectedWS, setSelectedWS] = useState<string>(() => {
+    return localStorage.getItem('gantt_selected_ws') || '';
+  });
+  
+  const [selectedInitiatives, setSelectedInitiatives] = useState<string[]>(() => {
+    const saved = localStorage.getItem('gantt_selected_initiatives');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
   const dayWidth = 20; 
   const infoColumnWidth = 600;
 
-  // Fechar filtro ao clicar fora
+  // Persistência dos filtros
+  useEffect(() => {
+    localStorage.setItem('gantt_selected_ws', selectedWS);
+  }, [selectedWS]);
+
+  useEffect(() => {
+    localStorage.setItem('gantt_selected_initiatives', JSON.stringify(selectedInitiatives));
+  }, [selectedInitiatives]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
@@ -26,7 +41,6 @@ const GanttView: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // PERSISTÊNCIA DAS DATAS DE FILTRO
   const [startDateFilter, setStartDateFilter] = useState<string>(() => {
     return localStorage.getItem('gantt_start_date') || 
       new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
@@ -86,7 +100,6 @@ const GanttView: React.FC = () => {
     let initiatives = workItems.filter(i => i.type === ItemType.INITIATIVE);
     if (selectedWS) initiatives = initiatives.filter(i => i.workstreamId === selectedWS);
     
-    // FILTRO MÚLTIPLO: Se houver itens selecionados, filtra por eles
     if (selectedInitiatives.length > 0) {
       initiatives = initiatives.filter(i => selectedInitiatives.includes(i.id));
     }
@@ -170,7 +183,6 @@ const GanttView: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col bg-white overflow-hidden">
-      {/* HEADER FIXO */}
       <div className="px-6 py-3 bg-white border-b border-gray-200 shrink-0 shadow-sm z-[100] relative">
         <div className="flex items-center justify-between gap-4">
            <div>
@@ -205,7 +217,6 @@ const GanttView: React.FC = () => {
                 
                 <div className="w-px h-4 bg-slate-200" />
                 
-                {/* FILTRO DE INICIATIVAS COM CHECKBOX */}
                 <button 
                   onClick={() => setIsFilterOpen(!isFilterOpen)}
                   className="flex items-center justify-between w-44 text-[11px] font-black text-slate-600 px-1"
@@ -255,7 +266,6 @@ const GanttView: React.FC = () => {
         </div>
       </div>
 
-      {/* ÁREA DE SCROLL PRINCIPAL */}
       <div className="flex-1 overflow-auto custom-scrollbar flex flex-col bg-slate-50 relative">
         <div className="sticky top-0 z-50 flex shrink-0 shadow-md">
           <div className="flex w-[600px] bg-[#334155] text-white text-[9px] font-black uppercase tracking-wider shrink-0 border-r border-slate-600 sticky left-0 z-[60]">

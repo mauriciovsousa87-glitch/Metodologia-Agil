@@ -1,8 +1,8 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Calendar, Users, Info, Plus, ChevronRight, 
-  LayoutGrid, ListTodo, AlertCircle, Clock, MoreVertical, Trash2, Filter, Layers, Target, Box, X, Edit, Trash, Loader2, Zap
+  LayoutGrid, ListTodo, AlertCircle, Clock, MoreVertical, Trash2, Filter, Layers, Target, Box, X, Edit, Trash, Loader2, Zap, ChevronDown, CheckSquare, Square
 } from 'lucide-react';
 import { useAgile } from '../../store';
 import { WorkItem, ItemType, BoardColumn, ItemStatus, ItemPriority } from '../../types';
@@ -37,8 +37,36 @@ const SprintView: React.FC = () => {
   const [editObjective, setEditObjective] = useState('');
   const [editStatus, setEditStatus] = useState<'Planejada' | 'Ativa' | 'Encerrada'>('Planejada');
 
-  const [filterWS, setFilterWS] = useState<string>(''); 
-  const [filterInitiative, setFilterInitiative] = useState<string>(''); 
+  // Filtros Persistentes
+  const [filterWS, setFilterWS] = useState<string>(() => {
+    return localStorage.getItem('sprint_filter_ws') || '';
+  });
+  
+  const [selectedInitiatives, setSelectedInitiatives] = useState<string[]>(() => {
+    const saved = localStorage.getItem('sprint_filter_initiatives');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [isInitFilterOpen, setIsInitFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    localStorage.setItem('sprint_filter_ws', filterWS);
+  }, [filterWS]);
+
+  useEffect(() => {
+    localStorage.setItem('sprint_filter_initiatives', JSON.stringify(selectedInitiatives));
+  }, [selectedInitiatives]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setIsInitFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const getThemeByInitiative = (initiativeId: string | undefined) => {
     if (!initiativeId) return { strip: 'border-l-slate-300', text: 'text-slate-500', badge: 'bg-slate-50 border-slate-100' };
@@ -99,20 +127,16 @@ const SprintView: React.FC = () => {
     return items;
   }, [workItems, filterWS]);
 
-  // FILTRO 1: Todos os itens vinculados à Sprint selecionada
   const allSprintItems = useMemo(() => {
     if (!selectedSprint) return [];
     const targetSprintId = String(selectedSprint.id).trim();
     return workItems.filter(item => item.sprintId && String(item.sprintId).trim() === targetSprintId);
   }, [workItems, selectedSprint]);
 
-  // FILTRO 2: Itens que devem aparecer no Quadro Kanban
   const taskboardItems = useMemo(() => {
     return allSprintItems.filter(item => {
-      // Regra de Tipo: Apenas Tarefa ou Bug no Board
       if (!ALLOWED_BOARD_TYPES.includes(item.type)) return false;
 
-      // Filtros hierárquicos ativos
       if (filterWS) {
         if (item.workstreamId !== filterWS) {
           const parent = workItems.find(p => p.id === item.parentId);
@@ -120,16 +144,19 @@ const SprintView: React.FC = () => {
         }
       }
 
-      if (filterInitiative) {
-        if (item.parentId !== filterInitiative) {
+      if (selectedInitiatives.length > 0) {
+        let isPartOfSelectedInit = false;
+        if (selectedInitiatives.includes(item.parentId || '')) isPartOfSelectedInit = true;
+        if (!isPartOfSelectedInit) {
           const parent = workItems.find(p => p.id === item.parentId);
-          if (parent?.parentId !== filterInitiative) return false;
+          if (parent && selectedInitiatives.includes(parent.parentId || '')) isPartOfSelectedInit = true;
         }
+        if (!isPartOfSelectedInit) return false;
       }
 
       return true;
     });
-  }, [allSprintItems, filterWS, filterInitiative, workItems]);
+  }, [allSprintItems, filterWS, selectedInitiatives, workItems]);
   
   const totalPoints = allSprintItems.reduce((acc, curr) => acc + (curr.effort || 0), 0);
   const donePoints = allSprintItems.filter(i => i.status === ItemStatus.CLOSED).reduce((acc, curr) => acc + (curr.effort || 0), 0);
@@ -144,7 +171,12 @@ const SprintView: React.FC = () => {
     updateWorkItem(itemId, { column: newColumn, status: newStatus });
   };
 
-  // Colunas do Quadro
+  const toggleInitiative = (id: string) => {
+    setSelectedInitiatives(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
   const columns = [BoardColumn.TODO, BoardColumn.DOING, BoardColumn.DONE];
 
   return (
@@ -196,18 +228,62 @@ const SprintView: React.FC = () => {
            </div>
            
            <div className="flex items-center gap-2">
-             <div className="flex items-center bg-gray-50 border border-gray-100 rounded px-1.5 py-0.5 gap-2">
+             <div className="flex items-center bg-gray-50 border border-gray-100 rounded px-1.5 py-0.5 gap-2 relative" ref={filterRef}>
                <Filter size={10} className="text-gray-300" />
-               <select className="bg-transparent border-none text-[9px] font-bold text-gray-500 focus:ring-0 p-0 cursor-pointer max-w-[80px]" value={filterWS} onChange={(e) => { setFilterWS(e.target.value); setFilterInitiative(''); }}>
+               <select className="bg-transparent border-none text-[9px] font-bold text-gray-500 focus:ring-0 p-0 cursor-pointer max-w-[80px]" value={filterWS} onChange={(e) => { setFilterWS(e.target.value); setSelectedInitiatives([]); }}>
                  <option value="">Frentes</option>
                  {availableFrentes.map(f => <option key={f.id} value={f.id}>{f.title}</option>)}
                </select>
-               <select className="bg-transparent border-none text-[9px] font-bold text-gray-500 focus:ring-0 p-0 cursor-pointer max-w-[80px]" value={filterInitiative} onChange={(e) => { setFilterInitiative(e.target.value); }}>
-                 <option value="">Iniciativas</option>
-                 {availableInitiatives.map(i => <option key={i.id} value={i.id}>{i.title}</option>)}
-               </select>
-               {(filterWS || filterInitiative) && (
-                 <button onClick={() => { setFilterWS(''); setFilterInitiative(''); }} className="p-0.5 text-gray-400">
+
+               <div className="w-px h-3 bg-gray-200" />
+
+               <button 
+                  onClick={() => setIsInitFilterOpen(!isInitFilterOpen)}
+                  className="bg-transparent border-none text-[9px] font-black text-gray-500 flex items-center gap-1 px-1 min-w-[100px]"
+                >
+                  <span className="truncate max-w-[80px]">
+                    {selectedInitiatives.length === 0 ? 'Iniciativas' : `${selectedInitiatives.length} sel.`}
+                  </span>
+                  <ChevronDown size={10} className={`transition-transform ${isInitFilterOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isInitFilterOpen && (
+                  <div className="absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-2xl z-[200] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                    <div className="p-2 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Iniciativas</span>
+                      {selectedInitiatives.length > 0 && (
+                        <button onClick={() => setSelectedInitiatives([])} className="text-[8px] font-bold text-blue-600 hover:underline uppercase">Limpar</button>
+                      )}
+                    </div>
+                    <div className="max-h-48 overflow-y-auto custom-scrollbar p-1.5 space-y-0.5">
+                      {availableInitiatives.length === 0 ? (
+                        <div className="py-3 text-center text-[9px] text-gray-400 font-bold">Nenhuma encontrada</div>
+                      ) : (
+                        availableInitiatives.map(init => (
+                          <label key={init.id} className="flex items-center gap-2 p-1.5 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors group">
+                            <input 
+                              type="checkbox" 
+                              className="hidden" 
+                              checked={selectedInitiatives.includes(init.id)} 
+                              onChange={() => toggleInitiative(init.id)}
+                            />
+                            {selectedInitiatives.includes(init.id) ? (
+                              <CheckSquare size={14} className="text-blue-600" />
+                            ) : (
+                              <Square size={14} className="text-gray-300 group-hover:text-gray-400" />
+                            )}
+                            <span className={`text-[10px] font-bold truncate ${selectedInitiatives.includes(init.id) ? 'text-blue-900' : 'text-gray-600'}`}>
+                              {init.title}
+                            </span>
+                          </label>
+                        )
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+               {(filterWS || selectedInitiatives.length > 0) && (
+                 <button onClick={() => { setFilterWS(''); setSelectedInitiatives([]); }} className="p-0.5 text-gray-400">
                    <X size={10} />
                  </button>
                )}
@@ -230,16 +306,12 @@ const SprintView: React.FC = () => {
           <div className="flex h-full gap-3 min-w-[900px]">
             {columns.map(col => {
               const itemsInCol = taskboardItems.filter(item => {
-                // NORMALIZAÇÃO DE COLUNA PARA RENDERIZAÇÃO:
-                // Se o item não tem coluna definida (null/undefined) OU se a coluna for 'Novo' (BoardColumn.NEW)
-                // nós o forçamos a aparecer na primeira coluna do Quadro (A Fazer / BoardColumn.TODO)
                 const itemCol = item.column;
                 
                 if (col === BoardColumn.TODO) {
                   return !itemCol || itemCol === BoardColumn.TODO || itemCol === BoardColumn.NEW;
                 }
                 
-                // Para as demais colunas (Em Execução, Concluído), a comparação deve ser exata
                 return itemCol === col;
               });
 
