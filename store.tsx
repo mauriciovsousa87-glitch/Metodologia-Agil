@@ -117,10 +117,13 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const findSprintForDate = (dateStr: string | undefined): string | null => {
     if (!dateStr || sprints.length === 0) return null;
-    const target = new Date(dateStr + 'T12:00:00');
+    
+    // Usar meio-dia para evitar problemas de fuso horário na comparação
+    const target = new Date(dateStr + 'T12:00:00').getTime();
+    
     const matched = sprints.find(s => {
-      const start = new Date(s.startDate + 'T00:00:00');
-      const end = new Date(s.endDate + 'T23:59:59');
+      const start = new Date(s.startDate + 'T00:00:00').getTime();
+      const end = new Date(s.endDate + 'T23:59:59').getTime();
       return target >= start && target <= end;
     });
     return matched ? matched.id : null;
@@ -128,12 +131,20 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const syncTasksWithSprints = async () => {
     if (!supabase) return;
+    
     const tasksToSync = workItems.filter(i => i.type === ItemType.TASK && i.endDate);
     
-    for (const task of tasksToSync) {
+    const updates = tasksToSync.map(task => {
       const targetSprintId = findSprintForDate(task.endDate);
       if (targetSprintId !== task.sprintId) {
-        await supabase.from('work_items').update({ sprint_id: targetSprintId }).eq('id', task.id);
+        return { id: task.id, sprint_id: targetSprintId };
+      }
+      return null;
+    }).filter(u => u !== null);
+
+    if (updates.length > 0) {
+      for (const update of updates) {
+        await supabase.from('work_items').update({ sprint_id: update.sprint_id }).eq('id', update.id);
       }
     }
     await fetchData();
@@ -152,6 +163,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       title: item.title || 'Novo Item',
       effort: item.effort || 0,
       kpi: item.kpi || '',
+      // FIX: Changed item.kpi_impact to item.kpiImpact to match WorkItem type definition
       kpi_impact: item.kpiImpact || '',
       column_name: item.column || BoardColumn.NEW,
       status: item.status || ItemStatus.NEW,
@@ -181,8 +193,6 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     }
 
-    setWorkItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
-
     const pg: any = {};
     if (updates.title !== undefined) pg.title = updates.title;
     if (updates.description !== undefined) pg.description = updates.description;
@@ -209,6 +219,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (updates.attachments !== undefined) pg.attachments = updates.attachments;
 
     await supabase.from('work_items').update(pg).eq('id', id);
+    fetchData();
   };
 
   const addSprint = async (s: Partial<Sprint>) => {

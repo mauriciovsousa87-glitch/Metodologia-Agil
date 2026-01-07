@@ -30,7 +30,6 @@ const BacklogView: React.FC = () => {
       resp: 130,
       kpi: 100,
       impact: 220,
-      effort: 60,
       progress: 80,
       sprint: 120,
       status: 100,
@@ -141,7 +140,7 @@ const BacklogView: React.FC = () => {
   const renderItem = (item: WorkItem, depth: number = 0) => {
     const children = sortedAndFilteredItems.filter(i => i.parentId === item.id);
     const isExpanded = expandedItems.has(item.id);
-    const { totalEffort, progress } = calculateRollup(item);
+    const { progress } = calculateRollup(item);
     const assignee = users.find(u => u.id === item.assigneeId);
     const sprint = sprints.find(s => s.id === item.sprintId);
     const sigla = getItemSigla(item.type);
@@ -200,7 +199,6 @@ const BacklogView: React.FC = () => {
                <span className="text-[10px] font-bold text-slate-500 truncate">{item.kpiImpact || '-'}</span>
              </div>
           </td>
-          <td className="px-2 py-2 text-[10px] text-gray-600 font-bold text-center" style={{ width: colWidths.effort }}>{totalEffort}</td>
           <td className="px-2 py-2" style={{ width: colWidths.progress }}>
             <div className="flex flex-col gap-0.5">
               <span className="text-[7px] font-black text-slate-400">{Math.round(progress)}%</span>
@@ -264,7 +262,6 @@ const BacklogView: React.FC = () => {
               <SortHeader label="Responsável" sortKey="assigneeId" colKey="resp" />
               <SortHeader label="KPI" sortKey="kpi" colKey="kpi" />
               <SortHeader label="Impacto" sortKey="kpiImpact" colKey="impact" />
-              <SortHeader label="Pts" sortKey="effort" colKey="effort" />
               <th className="px-2 py-2 sticky top-0 z-10 border-b bg-slate-50 uppercase relative" style={{ width: colWidths.progress }}>Progresso <div onMouseDown={(e) => onMouseDown('progress', e)} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 z-20" /></th>
               <SortHeader label="Sprint" sortKey="sprintId" colKey="sprint" />
               <SortHeader label="Status" sortKey="status" colKey="status" />

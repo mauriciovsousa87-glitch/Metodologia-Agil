@@ -22,9 +22,9 @@ export enum ItemStatus {
 
 export enum BoardColumn {
   NEW = 'Novo',
-  TODO = 'To Do',
-  DOING = 'Doing',
-  DONE = 'Done'
+  TODO = 'A Fazer',
+  DOING = 'Em Execução',
+  DONE = 'Concluído'
 }
 
 export interface User {
