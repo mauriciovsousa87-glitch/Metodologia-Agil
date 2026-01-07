@@ -8,7 +8,6 @@ import { useAgile } from '../../store';
 import { WorkItem, ItemType, BoardColumn, ItemStatus, ItemPriority } from '../../types';
 import ItemPanel from '../Backlog/ItemPanel';
 
-// Paleta de cores para as Iniciativas
 const INITIATIVE_COLORS = [
   { strip: 'border-l-blue-600', text: 'text-blue-700', badge: 'bg-blue-50 border-blue-100' },
   { strip: 'border-l-emerald-600', text: 'text-emerald-700', badge: 'bg-emerald-50 border-emerald-100' },
@@ -20,14 +19,15 @@ const INITIATIVE_COLORS = [
   { strip: 'border-l-fuchsia-600', text: 'text-fuchsia-700', badge: 'bg-fuchsia-50 border-fuchsia-100' },
 ];
 
+const ALLOWED_BOARD_TYPES = [ItemType.TASK, ItemType.BUG];
+
 const SprintView: React.FC = () => {
-  const { sprints, selectedSprint, setSprint, workItems, users, updateWorkItem, addWorkItem, updateSprint, deleteSprint, syncTasksWithSprints, loading: globalLoading } = useAgile();
+  const { sprints, selectedSprint, setSprint, workItems, users, updateWorkItem, addWorkItem, updateSprint, deleteSprint, syncTasksWithSprints } = useAgile();
   const [activeTab, setActiveTab] = useState<'backlog' | 'taskboard'>('taskboard');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  
   const [armDelete, setArmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -37,7 +37,9 @@ const SprintView: React.FC = () => {
   const [editObjective, setEditObjective] = useState('');
   const [editStatus, setEditStatus] = useState<'Planejada' | 'Ativa' | 'Encerrada'>('Planejada');
 
-  // Helper para cor baseada no ID da Iniciativa
+  const [filterWS, setFilterWS] = useState<string>(''); 
+  const [filterInitiative, setFilterInitiative] = useState<string>(''); 
+
   const getThemeByInitiative = (initiativeId: string | undefined) => {
     if (!initiativeId) return { strip: 'border-l-slate-300', text: 'text-slate-500', badge: 'bg-slate-50 border-slate-100' };
     let hash = 0;
@@ -76,61 +78,63 @@ const SprintView: React.FC = () => {
   const handleSync = async () => {
     if (isSyncing) return;
     setIsSyncing(true);
-    try {
-      await syncTasksWithSprints();
-    } catch (error) {
-      console.error("Falha na sincronização:", error);
-    } finally {
-      setIsSyncing(false);
-    }
+    try { await syncTasksWithSprints(); } finally { setIsSyncing(false); }
   };
 
   const handleTriggerDelete = async () => {
     if (!selectedSprint) return;
-    if (!armDelete) {
-      setArmDelete(true);
-      return;
-    }
+    if (!armDelete) { setArmDelete(true); return; }
     setIsDeleting(true);
     try {
       await deleteSprint(selectedSprint.id);
       setIsEditModalOpen(false);
       setArmDelete(false);
-    } finally {
-      setIsDeleting(false);
-    }
+    } finally { setIsDeleting(false); }
   };
-  
-  const [filterWS, setFilterWS] = useState<string>(''); 
-  const [filterInitiative, setFilterInitiative] = useState<string>(''); 
 
   const availableFrentes = useMemo(() => workItems.filter(i => i.type === ItemType.WORKSTREAM), [workItems]);
-
   const availableInitiatives = useMemo(() => {
     let items = workItems.filter(i => i.type === ItemType.INITIATIVE);
     if (filterWS) items = items.filter(i => i.parentId === filterWS || i.workstreamId === filterWS);
     return items;
   }, [workItems, filterWS]);
 
-  const sprintItems = useMemo(() => workItems.filter(item => item.sprintId === selectedSprint?.id), [workItems, selectedSprint]);
+  // FILTRO 1: Todos os itens vinculados à Sprint selecionada
+  const allSprintItems = useMemo(() => {
+    if (!selectedSprint) return [];
+    const targetSprintId = String(selectedSprint.id).trim();
+    return workItems.filter(item => item.sprintId && String(item.sprintId).trim() === targetSprintId);
+  }, [workItems, selectedSprint]);
 
-  const filteredItems = useMemo(() => {
-    return sprintItems.filter(item => {
-      if (filterWS && item.workstreamId !== filterWS && item.id !== filterWS) return false;
-      if (filterInitiative) {
-        const isSelf = item.id === filterInitiative;
-        const isChild = item.parentId === filterInitiative;
-        const parent = workItems.find(p => p.id === item.parentId);
-        if (!isSelf && !isChild && parent?.parentId !== filterInitiative) return false;
+  // FILTRO 2: Itens que devem aparecer no Quadro Kanban
+  const taskboardItems = useMemo(() => {
+    return allSprintItems.filter(item => {
+      // Regra de Tipo: Apenas Tarefa ou Bug no Board
+      if (!ALLOWED_BOARD_TYPES.includes(item.type)) return false;
+
+      // Filtros hierárquicos ativos
+      if (filterWS) {
+        if (item.workstreamId !== filterWS) {
+          const parent = workItems.find(p => p.id === item.parentId);
+          if (parent?.workstreamId !== filterWS && parent?.parentId !== filterWS) return false;
+        }
       }
+
+      if (filterInitiative) {
+        if (item.parentId !== filterInitiative) {
+          const parent = workItems.find(p => p.id === item.parentId);
+          if (parent?.parentId !== filterInitiative) return false;
+        }
+      }
+
       return true;
     });
-  }, [sprintItems, filterWS, filterInitiative, workItems]);
+  }, [allSprintItems, filterWS, filterInitiative, workItems]);
   
-  const totalPoints = sprintItems.reduce((acc, curr) => acc + curr.effort, 0);
-  const donePoints = sprintItems.filter(i => i.status === ItemStatus.CLOSED).reduce((acc, curr) => acc + curr.effort, 0);
+  const totalPoints = allSprintItems.reduce((acc, curr) => acc + (curr.effort || 0), 0);
+  const donePoints = allSprintItems.filter(i => i.status === ItemStatus.CLOSED).reduce((acc, curr) => acc + (curr.effort || 0), 0);
   const progress = totalPoints > 0 ? (donePoints / totalPoints) * 100 : 0;
-  const blockedItems = sprintItems.filter(i => i.blocked).length;
+  const blockedItems = allSprintItems.filter(i => i.blocked).length;
 
   const handleStatusChange = (itemId: string, newColumn: BoardColumn) => {
     let newStatus = ItemStatus.NEW;
@@ -140,7 +144,7 @@ const SprintView: React.FC = () => {
     updateWorkItem(itemId, { column: newColumn, status: newStatus });
   };
 
-  // Definimos as colunas que o quadro vai mostrar
+  // Colunas do Quadro
   const columns = [BoardColumn.TODO, BoardColumn.DOING, BoardColumn.DONE];
 
   return (
@@ -149,26 +153,25 @@ const SprintView: React.FC = () => {
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-3">
             <div className="flex flex-col">
-                <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider leading-none">Sprint Selecionada</span>
+                <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider leading-none">Visualizando Ciclo</span>
                 <div className="flex items-center gap-2">
                   <select 
                     className="text-md font-bold border-none bg-transparent hover:bg-gray-100 rounded p-0.5 -ml-1 cursor-pointer focus:ring-0"
                     value={selectedSprint?.id || ''}
                     onChange={(e) => setSprint(e.target.value)}
                   >
-                    {!selectedSprint && <option value="">Sem Sprint Selecionada</option>}
+                    {!selectedSprint && <option value="">Selecione uma Sprint</option>}
                     {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
-                  <button onClick={handleSync} disabled={isSyncing || sprints.length === 0} className={`p-1 rounded transition-all border group relative ${isSyncing ? 'bg-orange-100 border-orange-200 cursor-not-allowed' : 'bg-orange-50 text-orange-600 border-orange-100 hover:bg-orange-100'}`}>
+                  <button onClick={handleSync} disabled={isSyncing || sprints.length === 0} title="Sincronizar tarefas por data" className={`p-1 rounded transition-all border group relative ${isSyncing ? 'bg-orange-100 border-orange-200 cursor-not-allowed' : 'bg-orange-50 text-orange-600 border-orange-100 hover:bg-orange-100'}`}>
                     {isSyncing ? <Loader2 size={12} className="animate-spin text-orange-600" /> : <Zap size={12} fill="currentColor" />}
-                    <span className="absolute left-full ml-2 hidden group-hover:block bg-slate-800 text-white text-[8px] font-bold px-2 py-1 rounded whitespace-nowrap z-50">Sincronizar Alocação</span>
                   </button>
                 </div>
             </div>
           </div>
           <div className="flex items-center gap-4">
              <div className="text-right">
-               <p className="text-[8px] text-gray-400 uppercase font-black tracking-tight">Progresso Total</p>
+               <p className="text-[8px] text-gray-400 uppercase font-black tracking-tight">Capacidade</p>
                <div className="flex items-center gap-1.5">
                  <div className="w-20 bg-gray-100 h-1 rounded-full overflow-hidden">
                    <div className="bg-blue-600 h-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
@@ -176,8 +179,8 @@ const SprintView: React.FC = () => {
                  <span className="text-[9px] font-bold text-gray-600">{Math.round(progress)}%</span>
                </div>
              </div>
-             <button disabled={!selectedSprint} onClick={openEditModal} className="bg-white border border-gray-200 hover:bg-gray-50 text-slate-700 px-2 py-1 rounded text-[10px] font-black transition-all flex items-center gap-1.5">
-               <Edit size={12} /> EDITAR
+             <button disabled={!selectedSprint} onClick={openEditModal} className="bg-white border border-gray-200 hover:bg-gray-50 text-slate-700 px-2 py-1 rounded text-[10px] font-black transition-all flex items-center gap-1.5 uppercase tracking-tighter">
+               <Edit size={12} /> Ajustar Sprint
              </button>
           </div>
         </div>
@@ -188,7 +191,7 @@ const SprintView: React.FC = () => {
                 <LayoutGrid size={14} /> QUADRO
               </button>
               <button onClick={() => setActiveTab('backlog')} className={`flex items-center gap-1.5 px-2 py-1 text-[10px] font-black border-b-2 transition-all ${activeTab === 'backlog' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
-                <ListTodo size={14} /> PLANO
+                <ListTodo size={14} /> LISTA
               </button>
            </div>
            
@@ -209,9 +212,9 @@ const SprintView: React.FC = () => {
                  </button>
                )}
              </div>
-             <div className="flex items-center gap-2 text-[9px] font-medium text-gray-400">
-               <Clock size={10}/> Término: {selectedSprint?.endDate || '--'}
-               {blockedItems > 0 && <span className="text-red-500 font-black">! {blockedItems} bloqueados</span>}
+             <div className="flex items-center gap-2 text-[9px] font-medium text-gray-400 uppercase tracking-tighter">
+               <Clock size={10}/> Expira em: {selectedSprint?.endDate || '--'}
+               {blockedItems > 0 && <span className="text-red-500 font-black">! {blockedItems} bloqueios</span>}
              </div>
            </div>
         </div>
@@ -221,15 +224,23 @@ const SprintView: React.FC = () => {
         {!selectedSprint ? (
           <div className="h-full flex flex-col items-center justify-center gap-4 opacity-30">
              <Calendar size={48} />
-             <p className="text-xs font-black uppercase tracking-widest">Nenhuma Sprint selecionada</p>
+             <p className="text-xs font-black uppercase tracking-widest text-center">Nenhuma Sprint em exibição.<br/>Selecione uma para carregar o quadro.</p>
           </div>
         ) : activeTab === 'taskboard' ? (
           <div className="flex h-full gap-3 min-w-[900px]">
             {columns.map(col => {
-              // Ajuste de filtro: itens que pertencem a esta coluna ou que não tem coluna e a coluna atual é TODO
-              const itemsInCol = filteredItems.filter(item => {
-                const itemCol = item.column || BoardColumn.TODO;
-                return itemCol === col || (col === BoardColumn.TODO && itemCol === BoardColumn.NEW);
+              const itemsInCol = taskboardItems.filter(item => {
+                // NORMALIZAÇÃO DE COLUNA PARA RENDERIZAÇÃO:
+                // Se o item não tem coluna definida (null/undefined) OU se a coluna for 'Novo' (BoardColumn.NEW)
+                // nós o forçamos a aparecer na primeira coluna do Quadro (A Fazer / BoardColumn.TODO)
+                const itemCol = item.column;
+                
+                if (col === BoardColumn.TODO) {
+                  return !itemCol || itemCol === BoardColumn.TODO || itemCol === BoardColumn.NEW;
+                }
+                
+                // Para as demais colunas (Em Execução, Concluído), a comparação deve ser exata
+                return itemCol === col;
               });
 
               return (
@@ -252,9 +263,6 @@ const SprintView: React.FC = () => {
                       {col}
                       <span className="bg-slate-200 text-slate-600 px-1 rounded font-black">{itemsInCol.length}</span>
                     </h3>
-                    <button onClick={() => addWorkItem({ title: 'Nova Tarefa', column: col, sprintId: selectedSprint?.id, type: ItemType.TASK, status: ItemStatus.NEW })} className="p-0.5 text-slate-400 hover:text-slate-600">
-                      <Plus size={14} />
-                    </button>
                   </div>
                   
                   <div className="flex-1 space-y-2 overflow-y-auto custom-scrollbar min-h-[50px]">
@@ -328,14 +336,17 @@ const SprintView: React.FC = () => {
           <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 max-w-4xl mx-auto">
              <div className="mb-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100 flex items-start gap-3">
                <Target size={18} className="text-blue-600 mt-0.5" />
-               <p className="text-[11px] text-blue-800 font-medium leading-relaxed">{selectedSprint?.objective || 'Sem objetivo definido para este ciclo.'}</p>
+               <p className="text-[11px] text-blue-800 font-medium leading-relaxed">{selectedSprint?.objective || 'Nenhum objetivo definido.'}</p>
              </div>
              <div className="space-y-1.5">
-               {filteredItems.map(item => (
+               {allSprintItems.map(item => (
                  <div key={item.id} className="flex items-center justify-between p-2.5 bg-white border border-slate-100 rounded-lg hover:bg-slate-50 transition-all cursor-pointer group" onClick={() => setSelectedItemId(item.id)}>
                     <div className="flex items-center gap-3">
                       <span className="text-[9px] font-black text-slate-300 font-mono">{item.id}</span>
-                      <span className="text-[11px] font-bold text-slate-700 group-hover:text-blue-600">{item.title}</span>
+                      <span className="text-[11px] font-bold text-slate-700 group-hover:text-blue-600">
+                        <span className="text-[9px] opacity-50 mr-2 uppercase">[{item.type}]</span>
+                        {item.title}
+                      </span>
                     </div>
                     <span className={`px-1.5 py-0.5 rounded text-[7px] font-black border uppercase ${
                       item.status === ItemStatus.CLOSED ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'
@@ -351,12 +362,12 @@ const SprintView: React.FC = () => {
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95" onMouseDown={(e) => e.stopPropagation()}>
               <div className="bg-slate-50 p-5 border-b flex items-center justify-between">
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter">Configurar Sprint</h3>
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tighter">Setup de Sprint</h3>
                 <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1"><X size={18} /></button>
               </div>
               <div className="p-6 space-y-4">
                 <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block ml-1">Nome da Sprint</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block ml-1">Título</label>
                   <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold focus:border-blue-500 outline-none" value={editName} onChange={(e) => setEditName(e.target.value)} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -370,7 +381,7 @@ const SprintView: React.FC = () => {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block ml-1">Status</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block ml-1">Status do Ciclo</label>
                   <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none" value={editStatus} onChange={(e) => setEditStatus(e.target.value as any)}>
                     <option value="Planejada">Planejada</option>
                     <option value="Ativa">Ativa</option>
@@ -378,7 +389,7 @@ const SprintView: React.FC = () => {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block ml-1">Objetivo</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block ml-1">Objetivo Estratégico</label>
                   <textarea className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none h-16 resize-none" value={editObjective} onChange={(e) => setEditObjective(e.target.value)} />
                 </div>
               </div>
@@ -387,16 +398,13 @@ const SprintView: React.FC = () => {
                   disabled={isDeleting} 
                   onClick={handleTriggerDelete} 
                   className={`px-3 py-2 rounded text-[10px] font-black uppercase transition-all flex items-center gap-1.5 border ${
-                    armDelete 
-                      ? 'bg-red-600 text-white border-red-700 animate-pulse shadow-lg' 
-                      : 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100'
+                    armDelete ? 'bg-red-600 text-white border-red-700 shadow-lg' : 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100'
                   }`}
                 >
-                  {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash size={12} />}
-                  {armDelete ? 'CONFIRMAR AGORA' : 'EXCLUIR'}
+                  <Trash size={12} /> {armDelete ? 'Confirmar Exclusão?' : 'Excluir'}
                 </button>
                 <div className="flex-1" />
-                <button onClick={() => setIsEditModalOpen(false)} className="px-3 py-2 text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase">Cancelar</button>
+                <button onClick={() => setIsEditModalOpen(false)} className="px-3 py-2 text-[10px] font-black text-slate-400 uppercase">Cancelar</button>
                 <button onClick={handleUpdateSprint} className="px-4 py-2 bg-slate-900 text-white text-[10px] font-black rounded-lg shadow-lg hover:bg-slate-800 transition-all uppercase">Salvar</button>
               </div>
             </div>

@@ -26,6 +26,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
   const [localDescription, setLocalDescription] = useState(item.description || '');
   const [localStartDate, setLocalStartDate] = useState(item.startDate || '');
   const [localEndDate, setLocalEndDate] = useState(item.endDate || '');
+  const [localSprintId, setLocalSprintId] = useState(item.sprintId || '');
 
   useEffect(() => {
     setLocalTitle(item.title);
@@ -34,42 +35,39 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
     setLocalDescription(item.description || '');
     setLocalStartDate(item.startDate || '');
     setLocalEndDate(item.endDate || '');
-  }, [item.id]);
+    setLocalSprintId(item.sprintId || '');
+  }, [item.id, item.sprintId]);
 
-  // AUTO-SAVE DE 1 SEGUNDO
+  // AUTO-SAVE COM LOGICA DE COMPARACAO RIGOROSA
   useEffect(() => {
     const timer = setTimeout(() => {
-      const updates: Partial<WorkItem> = {};
+      const updates: any = {};
+      
+      // Strings vazias no front viram null no banco
       if (localTitle !== item.title) updates.title = localTitle;
       if (localKpi !== (item.kpi || '')) updates.kpi = localKpi;
       if (localKpiImpact !== (item.kpiImpact || '')) updates.kpiImpact = localKpiImpact;
       if (localDescription !== (item.description || '')) updates.description = localDescription;
-      if (localStartDate !== (item.startDate || '')) updates.startDate = localStartDate;
-      if (localEndDate !== (item.endDate || '')) updates.endDate = localEndDate;
+      if (localStartDate !== (item.startDate || '')) updates.startDate = localStartDate || null;
+      if (localEndDate !== (item.endDate || '')) updates.endDate = localEndDate || null;
+      
+      // Sprint ID: se vazio no select, manda null explicito
+      if (localSprintId !== (item.sprintId || '')) {
+        updates.sprintId = localSprintId ? String(localSprintId) : null;
+      }
 
       if (Object.keys(updates).length > 0) {
         updateWorkItem(item.id, updates);
       }
-    }, 1000);
+    }, 800);
     return () => clearTimeout(timer);
-  }, [localTitle, localKpi, localKpiImpact, localDescription, localStartDate, localEndDate, item.id]);
+  }, [localTitle, localKpi, localKpiImpact, localDescription, localStartDate, localEndDate, localSprintId]);
 
   const handleUpdate = (updates: Partial<WorkItem>) => {
     updateWorkItem(item.id, updates);
   };
 
   const handleClose = () => {
-    const finalUpdates: Partial<WorkItem> = {};
-    if (localTitle !== item.title) finalUpdates.title = localTitle;
-    if (localKpi !== (item.kpi || '')) finalUpdates.kpi = localKpi;
-    if (localKpiImpact !== (item.kpiImpact || '')) finalUpdates.kpiImpact = localKpiImpact;
-    if (localDescription !== (item.description || '')) finalUpdates.description = localDescription;
-    if (localStartDate !== (item.startDate || '')) finalUpdates.startDate = localStartDate;
-    if (localEndDate !== (item.endDate || '')) finalUpdates.endDate = localEndDate;
-
-    if (Object.keys(finalUpdates).length > 0) {
-      updateWorkItem(item.id, finalUpdates);
-    }
     onClose();
   };
 
@@ -167,13 +165,16 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sprint Alvo</label>
-              <select className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm" value={item.sprintId || ''} onChange={(e) => handleUpdate({ sprintId: e.target.value || undefined })}>
-                <option value="">Fora de Sprints</option>
+              <select 
+                className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm ring-2 ring-blue-500/20" 
+                value={localSprintId} 
+                onChange={(e) => setLocalSprintId(e.target.value)}
+              >
+                <option value="">Nenhuma Sprint</option>
                 {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
 
-            {/* NOVOS CAMPOS DE DATA PARA O GANTT */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
                 <Calendar size={12} className="text-blue-500" /> Data Início
@@ -266,7 +267,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
           <button onClick={handleDelete} className={`flex-1 py-4 rounded-2xl text-xs font-black transition-all ${isConfirmingDelete ? 'bg-red-600 text-white animate-pulse' : 'bg-white text-red-600 border-2 border-red-100 hover:bg-red-50'}`}>
             {isConfirmingDelete ? 'CONFIRMAR EXCLUSÃO' : 'EXCLUIR ITEM'}
           </button>
-          <button onClick={handleClose} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl text-xs font-black shadow-xl active:scale-95 transition-all">FECHAR E SALVAR</button>
+          <button onClick={handleClose} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl text-xs font-black shadow-xl active:scale-95 transition-all">FECHAR PAINEL</button>
         </div>
       </div>
 
