@@ -112,45 +112,37 @@ const BacklogView: React.FC = () => {
     } finally { setIsProcessing(null); }
   };
 
+  // Função robusta de cálculo de progresso estritamente baseada em descendentes TR
   const calculateRollup = (item: WorkItem) => {
-    // Se for tarefa, o progresso é dele mesmo
     if (item.type === ItemType.TASK || item.type === ItemType.BUG) {
-      return { totalEffort: item.effort || 0, progress: item.status === ItemStatus.CLOSED ? 100 : 0 };
+      return { progress: item.status === ItemStatus.CLOSED ? 100 : 0 };
     }
 
-    const getAllTasks = (id: string): WorkItem[] => {
-      let tasks: WorkItem[] = [];
+    const getAllTRDescendants = (id: string): WorkItem[] => {
+      let results: WorkItem[] = [];
       const children = workItems.filter(i => i.parentId === id);
       children.forEach(child => {
         if (child.type === ItemType.TASK || child.type === ItemType.BUG) {
-          tasks.push(child);
+          results.push(child);
         } else {
-          tasks = [...tasks, ...getAllTasks(child.id)];
+          results = [...results, ...getAllTRDescendants(child.id)];
         }
       });
-      return tasks;
+      return results;
     };
 
-    const descendants = getAllTasks(item.id);
-    
-    if (descendants.length === 0) {
-      // Fallback: se não tem tarefas mas o item pai está fechado
-      return { totalEffort: 0, progress: item.status === ItemStatus.CLOSED ? 100 : 0 };
-    }
+    const TRs = getAllTRDescendants(item.id);
+    if (TRs.length === 0) return { progress: item.status === ItemStatus.CLOSED ? 100 : 0 };
 
-    const totalEffort = descendants.reduce((acc, curr) => acc + (curr.effort || 0), 0);
-    const completedEffort = descendants
-      .filter(i => i.status === ItemStatus.CLOSED)
-      .reduce((acc, curr) => acc + (curr.effort || 0), 0);
+    const totalEffort = TRs.reduce((acc, curr) => acc + (curr.effort || 0), 0);
+    const completedEffort = TRs.filter(i => i.status === ItemStatus.CLOSED).reduce((acc, curr) => acc + (curr.effort || 0), 0);
 
-    // Se as tarefas não tiverem pontos, calculamos por contagem simples
     if (totalEffort === 0) {
-      const countTotal = descendants.length;
-      const countDone = descendants.filter(i => i.status === ItemStatus.CLOSED).length;
-      return { totalEffort: 0, progress: (countDone / countTotal) * 100 };
+      const doneCount = TRs.filter(i => i.status === ItemStatus.CLOSED).length;
+      return { progress: (doneCount / TRs.length) * 100 };
     }
 
-    return { totalEffort, progress: (completedEffort / totalEffort) * 100 };
+    return { progress: (completedEffort / totalEffort) * 100 };
   };
 
   const getItemSigla = (type: ItemType) => {

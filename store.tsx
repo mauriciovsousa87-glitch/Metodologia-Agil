@@ -67,29 +67,27 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           status: s.status
         }));
         setSprints(mappedSprints);
+        
         if (selectedSprintId && !mappedSprints.find(s => s.id === selectedSprintId)) {
           setSelectedSprintId(mappedSprints.length > 0 ? mappedSprints[mappedSprints.length - 1].id : null);
-        } else if (mappedSprints.length > 0 && !selectedSprintId) {
-          const active = mappedSprints.find(s => s.status === 'Ativa');
-          setSelectedSprintId(active ? active.id : mappedSprints[mappedSprints.length - 1].id);
         }
       }
 
       if (wRes.data) {
         const mappedItems = wRes.data.map(item => ({
           id: item.id,
-          type: item.type,
+          type: item.type as ItemType,
           title: item.title,
           description: item.description || '',
-          priority: item.priority || ItemPriority.P3,
+          priority: item.priority as ItemPriority || ItemPriority.P3,
           effort: item.effort || 0,
           kpi: item.kpi || '', 
           kpiImpact: item.kpi_impact || '', 
           assigneeId: item.assignee_id,
-          status: item.status || ItemStatus.NEW,
-          column: item.column_name || BoardColumn.NEW,
+          status: item.status as ItemStatus || ItemStatus.NEW,
+          column: item.column_name as BoardColumn || BoardColumn.NEW,
           parentId: item.parent_id,
-          sprintId: item.sprint_id,
+          sprintId: item.sprint_id, // CORREÇÃO: Mapeando sprint_id para sprintId consistentemente
           workstreamId: item.workstream_id,
           blocked: item.blocked || false,
           blockReason: item.block_reason || '',
@@ -115,55 +113,71 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => { supabase.removeChannel(channel); };
   }, [fetchData]);
 
+  // Função de normalização robusta: remove qualquer caractere não numérico para comparar YYYYMMDD
+  const normalizeDate = (d: string | undefined) => {
+    if (!d) return 0;
+    const clean = d.split('T')[0].replace(/[^0-9]/g, '');
+    return parseInt(clean, 10);
+  };
+
   const findSprintForDate = (dateStr: string | undefined): string | null => {
     if (!dateStr || sprints.length === 0) return null;
     
-    // Usar meio-dia para evitar problemas de fuso horário na comparação
-    const target = new Date(dateStr + 'T12:00:00').getTime();
+    const target = normalizeDate(dateStr);
     
     const matched = sprints.find(s => {
-      const start = new Date(s.startDate + 'T00:00:00').getTime();
-      const end = new Date(s.endDate + 'T23:59:59').getTime();
+      const start = normalizeDate(s.startDate);
+      const end = normalizeDate(s.endDate);
       return target >= start && target <= end;
     });
+    
     return matched ? matched.id : null;
   };
 
   const syncTasksWithSprints = async () => {
     if (!supabase) return;
     
-    const tasksToSync = workItems.filter(i => i.type === ItemType.TASK && i.endDate);
-    
-    const updates = tasksToSync.map(task => {
-      const targetSprintId = findSprintForDate(task.endDate);
-      if (targetSprintId !== task.sprintId) {
-        return { id: task.id, sprint_id: targetSprintId };
-      }
-      return null;
-    }).filter(u => u !== null);
+    console.log("Iniciando Sincronização...");
+    // Filtramos apenas itens que possuem data de fim. Não filtramos por tipo para garantir que nada escape.
+    const itemsWithDates = workItems.filter(i => i.endDate);
+    let updatedCount = 0;
 
-    if (updates.length > 0) {
-      for (const update of updates) {
-        await supabase.from('work_items').update({ sprint_id: update.sprint_id }).eq('id', update.id);
+    for (const item of itemsWithDates) {
+      const targetSprintId = findSprintForDate(item.endDate);
+      
+      // Comparamos o ID atual com o alvo. Se for diferente, atualizamos no banco.
+      if (targetSprintId !== item.sprintId) {
+        console.log(`Movendo ${item.id} (${item.title}) -> Sprint: ${targetSprintId || 'Backlog'}`);
+        const { error } = await supabase
+          .from('work_items')
+          .update({ sprint_id: targetSprintId })
+          .eq('id', item.id);
+        
+        if (!error) updatedCount++;
+        else console.error(`Erro ao mover ${item.id}:`, error);
       }
     }
-    await fetchData();
+
+    console.log(`Sincronização concluída: ${updatedCount} itens atualizados.`);
+    await fetchData(); 
   };
 
   const addWorkItem = async (item: Partial<WorkItem>) => {
     if (!supabase) return;
     const id = `A-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
     let autoSprintId = item.sprintId || null;
-    if (item.type === ItemType.TASK && item.endDate) {
+    
+    // Se for uma tarefa com data, tenta achar a sprint automaticamente
+    if (item.endDate) {
       autoSprintId = findSprintForDate(item.endDate);
     }
+    
     const payload = {
       id,
       type: item.type || ItemType.DELIVERY,
       title: item.title || 'Novo Item',
       effort: item.effort || 0,
       kpi: item.kpi || '',
-      // FIX: Changed item.kpi_impact to item.kpiImpact to match WorkItem type definition
       kpi_impact: item.kpiImpact || '',
       column_name: item.column || BoardColumn.NEW,
       status: item.status || ItemStatus.NEW,
@@ -174,6 +188,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       end_date: item.endDate || null,
       assignee_id: item.assigneeId || null
     };
+    
     await supabase.from('work_items').insert([payload]);
     fetchData();
   };
@@ -181,16 +196,13 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const updateWorkItem = async (id: string, updates: Partial<WorkItem>) => {
     if (!supabase) return;
     const currentItem = workItems.find(i => i.id === id);
-    const itemType = updates.type || currentItem?.type;
-
-    if (itemType === ItemType.TASK) {
-      const finalEndDate = updates.endDate !== undefined ? updates.endDate : currentItem?.endDate;
-      if (finalEndDate) {
-        const autoSprintId = findSprintForDate(finalEndDate);
-        updates.sprintId = autoSprintId || undefined;
-      } else if (updates.endDate === null || updates.endDate === '') {
-        updates.sprintId = undefined;
-      }
+    
+    // Lógica de auto-sprint no update
+    const finalEndDate = updates.endDate !== undefined ? updates.endDate : currentItem?.endDate;
+    if (finalEndDate) {
+      const autoSprintId = findSprintForDate(finalEndDate);
+      // Só sobrescrevemos o sprintId se encontrarmos uma sprint válida ou se a data foi explicitamente alterada
+      if (autoSprintId !== undefined) updates.sprintId = autoSprintId || undefined;
     }
 
     const pg: any = {};
@@ -206,13 +218,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (updates.startDate !== undefined) pg.start_date = updates.startDate || null;
     if (updates.endDate !== undefined) pg.end_date = updates.endDate || null;
     if (updates.parentId !== undefined) pg.parent_id = updates.parentId || null;
-    
-    if (updates.sprintId !== undefined) {
-      pg.sprint_id = updates.sprintId || null;
-    } else if (itemType === ItemType.TASK && updates.endDate !== undefined) {
-      pg.sprint_id = findSprintForDate(updates.endDate) || null;
-    }
-
+    if (updates.sprintId !== undefined) pg.sprint_id = updates.sprintId || null;
     if (updates.workstreamId !== undefined) pg.workstream_id = updates.workstreamId || null;
     if (updates.column !== undefined) pg.column_name = updates.column;
     if (updates.blockReason !== undefined) pg.block_reason = updates.blockReason || null;
@@ -259,7 +265,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     await supabase.from('work_items').update({ sprint_id: null }).eq('sprint_id', id);
     await supabase.from('sprints').delete().eq('id', id);
     if (selectedSprintId === id) setSelectedSprintId(null);
-    fetchData();
+    await fetchData();
   };
 
   const addUser = async (name: string, file?: File) => {
