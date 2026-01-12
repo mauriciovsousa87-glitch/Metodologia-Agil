@@ -100,4 +100,4 @@ export interface WorkItem {
   attachments?: Attachment[];
 }
 
-export type ViewType = 'Backlog' | 'Sprints' | 'Dashboard' | 'Gantt' | 'Settings';
+export type ViewType = 'Backlog' | 'Sprints' | 'Dashboard' | 'Gantt' | 'Finance' | 'Settings';

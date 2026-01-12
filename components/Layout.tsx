@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { 
   LayoutGrid, ListTodo, BarChart3, GanttChartSquare, Settings, 
-  Menu, X, Plus, Bell, AlertCircle, Calendar, Trash2
+  Menu, X, Plus, Bell, AlertCircle, Calendar, Trash2, DollarSign
 } from 'lucide-react';
 import { ViewType } from '../types';
 import { useAgile } from '../store';
@@ -30,6 +30,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
   const navItems = [
     { id: 'Sprints' as ViewType, label: 'Sprints', icon: LayoutGrid },
     { id: 'Backlog' as ViewType, label: 'Backlog', icon: ListTodo },
+    { id: 'Finance' as ViewType, label: 'Gestão de Custos', icon: DollarSign },
     { id: 'Dashboard' as ViewType, label: 'Dashboard', icon: BarChart3 },
     { id: 'Gantt' as ViewType, label: 'Gantt', icon: GanttChartSquare },
     { id: 'Settings' as ViewType, label: 'Configurações', icon: Settings },
@@ -39,7 +40,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
     e.preventDefault();
     e.stopPropagation();
     
-    // Determinar data base (após a última ou hoje)
     const lastSprint = sprints[sprints.length - 1];
     const baseDate = lastSprint 
       ? new Date(new Date(lastSprint.endDate).getTime() + 86400000)
@@ -50,17 +50,14 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
     const startStr = baseDate.toISOString().split('T')[0];
     const endStr = endDate.toISOString().split('T')[0];
     
-    // PADRÃO SOLICITADO: SPRINT 2025 - MAR - S[N]
     const year = baseDate.getFullYear();
     const monthCode = baseDate.toLocaleString('pt-BR', { month: 'short' }).toUpperCase().replace('.', '');
     
-    // Contar sprints no mesmo mês e ano
     const sprintsThisMonth = sprints.filter(s => {
       const d = new Date(s.startDate);
       return d.getMonth() === baseDate.getMonth() && d.getFullYear() === year;
     });
 
-    // Número sequencial dentro do mês (S1, S2, S3, S4, S5)
     const sNumber = Math.min(sprintsThisMonth.length + 1, 5);
     const generatedName = `SPRINT ${year} - ${monthCode} - S${sNumber}`;
 

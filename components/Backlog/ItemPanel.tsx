@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   X, Trash2, ListTodo, Calendar, AlertCircle, AlertTriangle, 
-  Upload, Download, Paperclip, ChevronRight, Lock, Unlock, AlignLeft, Loader2, ExternalLink, Tag, Target, Zap
+  Upload, Download, Paperclip, ChevronRight, Lock, Unlock, AlignLeft, Loader2, ExternalLink, Tag, Target, Zap, DollarSign, ShoppingCart, FileText, CreditCard
 } from 'lucide-react';
 import { WorkItem, ItemPriority, ItemStatus, Attachment } from '../../types';
 import { useAgile } from '../../store';
@@ -28,6 +28,14 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
   const [localEndDate, setLocalEndDate] = useState(item.endDate || '');
   const [localSprintId, setLocalSprintId] = useState(item.sprintId || '');
 
+  // NOVOS ESTADOS PARA GESTÃO DE CUSTO
+  const [localCostItem, setLocalCostItem] = useState((item as any).costItem || '');
+  const [localCostType, setLocalCostType] = useState((item as any).costType || 'OPEX');
+  const [localRequestNum, setLocalRequestNum] = useState((item as any).requestNum || '');
+  const [localOrderNum, setLocalOrderNum] = useState((item as any).orderNum || '');
+  const [localBillingStatus, setLocalBillingStatus] = useState((item as any).billingStatus || 'Em aberto');
+  const [localCostValue, setLocalCostValue] = useState((item as any).costValue || 0);
+
   useEffect(() => {
     setLocalTitle(item.title);
     setLocalKpi(item.kpi || '');
@@ -36,14 +44,21 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
     setLocalStartDate(item.startDate || '');
     setLocalEndDate(item.endDate || '');
     setLocalSprintId(item.sprintId || '');
+    
+    // Reset de custos ao mudar item
+    setLocalCostItem((item as any).costItem || '');
+    setLocalCostType((item as any).costType || 'OPEX');
+    setLocalRequestNum((item as any).requestNum || '');
+    setLocalOrderNum((item as any).orderNum || '');
+    setLocalBillingStatus((item as any).billingStatus || 'Em aberto');
+    setLocalCostValue((item as any).costValue || 0);
   }, [item.id, item.sprintId]);
 
-  // AUTO-SAVE COM LOGICA DE COMPARACAO RIGOROSA
+  // AUTO-SAVE COM LOGICA DE COMPARACAO RIGOROSA (Preservando funcionalidade anterior)
   useEffect(() => {
     const timer = setTimeout(() => {
       const updates: any = {};
       
-      // Strings vazias no front viram null no banco
       if (localTitle !== item.title) updates.title = localTitle;
       if (localKpi !== (item.kpi || '')) updates.kpi = localKpi;
       if (localKpiImpact !== (item.kpiImpact || '')) updates.kpiImpact = localKpiImpact;
@@ -51,17 +66,27 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
       if (localStartDate !== (item.startDate || '')) updates.startDate = localStartDate || null;
       if (localEndDate !== (item.endDate || '')) updates.endDate = localEndDate || null;
       
-      // Sprint ID: se vazio no select, manda null explicito
       if (localSprintId !== (item.sprintId || '')) {
         updates.sprintId = localSprintId ? String(localSprintId) : null;
       }
+
+      // Sincronização de campos de custo
+      if (localCostItem !== ((item as any).costItem || '')) updates.costItem = localCostItem;
+      if (localCostType !== ((item as any).costType || 'OPEX')) updates.costType = localCostType;
+      if (localRequestNum !== ((item as any).requestNum || '')) updates.requestNum = localRequestNum;
+      if (localOrderNum !== ((item as any).orderNum || '')) updates.orderNum = localOrderNum;
+      if (localBillingStatus !== ((item as any).billingStatus || 'Em aberto')) updates.billingStatus = localBillingStatus;
+      if (Number(localCostValue) !== Number((item as any).costValue || 0)) updates.costValue = Number(localCostValue);
 
       if (Object.keys(updates).length > 0) {
         updateWorkItem(item.id, updates);
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [localTitle, localKpi, localKpiImpact, localDescription, localStartDate, localEndDate, localSprintId]);
+  }, [
+    localTitle, localKpi, localKpiImpact, localDescription, localStartDate, localEndDate, localSprintId,
+    localCostItem, localCostType, localRequestNum, localOrderNum, localBillingStatus, localCostValue
+  ]);
 
   const handleUpdate = (updates: Partial<WorkItem>) => {
     updateWorkItem(item.id, updates);
@@ -132,6 +157,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
         </div>
 
         <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-10">
+          {/* Sessão de Título */}
           <section>
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Título do Trabalho</label>
             <textarea 
@@ -142,6 +168,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
             />
           </section>
 
+          {/* Grid de Informações Principais */}
           <div className="grid grid-cols-2 gap-x-6 gap-y-4 p-6 bg-slate-50 rounded-3xl border border-slate-100">
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</label>
@@ -227,6 +254,94 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
             </div>
           </div>
 
+          {/* GESTÃO DE CUSTO - NOVO MÓDULO SOLICITADO */}
+          <section className="space-y-4">
+            <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+              <DollarSign size={16} className="text-emerald-500" /> Gestão de Custos e Aquisições
+            </h3>
+            
+            <div className="grid grid-cols-2 gap-x-6 gap-y-4 p-6 bg-emerald-50/50 rounded-3xl border border-emerald-100">
+              <div className="col-span-2 space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                  <ShoppingCart size={12} /> Item para Compra / Serviço
+                </label>
+                <input 
+                  type="text" 
+                  className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm focus:border-emerald-400 outline-none" 
+                  value={localCostItem} 
+                  onChange={(e) => setLocalCostItem(e.target.value)} 
+                  placeholder="Ex: Licença de software, Hardware, Consultoria..." 
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo de Aplicação</label>
+                <select 
+                  className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm outline-none focus:border-emerald-400" 
+                  value={localCostType} 
+                  onChange={(e) => setLocalCostType(e.target.value)}
+                >
+                  <option value="OPEX">OPEX (Despesa Operacional)</option>
+                  <option value="CAPEX">CAPEX (Investimento)</option>
+                  <option value="SEVIM">SEVIM</option>
+                  <option value="OUTROS">Outros</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor Estimado (R$)</label>
+                <input 
+                  type="number" 
+                  className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm outline-none focus:border-emerald-400" 
+                  value={localCostValue} 
+                  onChange={(e) => setLocalCostValue(e.target.value)} 
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                  <FileText size={12} /> Nº Requisição (RC)
+                </label>
+                <input 
+                  type="text" 
+                  className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm outline-none focus:border-emerald-400" 
+                  value={localRequestNum} 
+                  onChange={(e) => setLocalRequestNum(e.target.value)} 
+                  placeholder="Ex: RC-2025-001"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                  <CreditCard size={12} /> Nº Pedido (PO)
+                </label>
+                <input 
+                  type="text" 
+                  className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm outline-none focus:border-emerald-400" 
+                  value={localOrderNum} 
+                  onChange={(e) => setLocalOrderNum(e.target.value)} 
+                  placeholder="Ex: PO-12345"
+                />
+              </div>
+
+              <div className="col-span-2 space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status do Pedido / Faturamento</label>
+                <select 
+                  className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2.5 bg-white shadow-sm outline-none focus:border-emerald-400" 
+                  value={localBillingStatus} 
+                  onChange={(e) => setLocalBillingStatus(e.target.value)}
+                >
+                  <option value="Em aberto">Em aberto</option>
+                  <option value="Aguardando Aprovação">Aguardando Aprovação</option>
+                  <option value="Pedido Emitido">Pedido Emitido</option>
+                  <option value="Faturado">Faturado / Concluído</option>
+                  <option value="Cancelado">Cancelado</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          {/* Detalhamento */}
           <section>
             <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2">
               <AlignLeft size={16} className="text-slate-400" /> Detalhamento
@@ -240,6 +355,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
             />
           </section>
 
+          {/* Anexos */}
           <section className="space-y-4">
              <div className="flex items-center justify-between">
                 <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">

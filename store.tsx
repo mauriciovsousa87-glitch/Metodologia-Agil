@@ -75,7 +75,6 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (wRes.data) {
         const mappedItems = wRes.data.map(item => {
-          // Garante que column nunca seja nulo para não sumir do Kanban
           let col = item.column_name as BoardColumn;
           if (!col || col === null) col = BoardColumn.TODO;
           
@@ -101,7 +100,14 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             blockReason: item.block_reason || '',
             startDate: item.start_date,
             endDate: item.end_date,
-            attachments: item.attachments || []
+            attachments: item.attachments || [],
+            // PERSISTÊNCIA DOS CAMPOS DE CUSTO
+            costItem: item.cost_item || '',
+            costType: item.cost_type || 'OPEX',
+            requestNum: item.request_num || '',
+            orderNum: item.order_num || '',
+            billingStatus: item.billing_status || 'Em aberto',
+            costValue: item.cost_value || 0
           };
         });
         setWorkItems(mappedItems);
@@ -170,7 +176,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     fetchData();
   };
 
-  const updateWorkItem = async (id: string, updates: Partial<WorkItem>) => {
+  const updateWorkItem = async (id: string, updates: any) => {
     if (!supabase) return;
     
     const pg: any = {};
@@ -191,6 +197,14 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (updates.column !== undefined) pg.column_name = updates.column;
     if (updates.blockReason !== undefined) pg.block_reason = updates.blockReason || null;
     if (updates.attachments !== undefined) pg.attachments = updates.attachments;
+
+    // NOVOS CAMPOS DE CUSTO PARA MAPEAR PARA O POSTGRES
+    if (updates.costItem !== undefined) pg.cost_item = updates.costItem;
+    if (updates.costType !== undefined) pg.cost_type = updates.costType;
+    if (updates.requestNum !== undefined) pg.request_num = updates.requestNum;
+    if (updates.orderNum !== undefined) pg.order_num = updates.orderNum;
+    if (updates.billingStatus !== undefined) pg.billing_status = updates.billingStatus;
+    if (updates.costValue !== undefined) pg.cost_value = updates.costValue;
 
     await supabase.from('work_items').update(pg).eq('id', id);
     fetchData();

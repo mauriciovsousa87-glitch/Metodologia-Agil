@@ -6,6 +6,7 @@ import BacklogView from './components/Backlog/BacklogView';
 import SprintView from './components/Sprints/SprintView';
 import DashboardView from './components/Dashboard/DashboardView';
 import GanttView from './components/Gantt/GanttView';
+import FinanceView from './components/Finance/FinanceView';
 import { ViewType } from './types';
 import { Settings as SettingsIcon, Camera, X, Shield } from 'lucide-react';
 
@@ -97,6 +98,7 @@ const App: React.FC = () => {
       case 'Sprints': return <SprintView />;
       case 'Dashboard': return <DashboardView />;
       case 'Gantt': return <GanttView />;
+      case 'Finance': return <FinanceView />;
       case 'Settings': return <SettingsView />;
       default: return <SprintView />;
     }
