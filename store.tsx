@@ -101,7 +101,6 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             startDate: item.start_date,
             endDate: item.end_date,
             attachments: item.attachments || [],
-            // PERSISTÊNCIA DOS CAMPOS DE CUSTO
             costItem: item.cost_item || '',
             costType: item.cost_type || 'OPEX',
             requestNum: item.request_num || '',
@@ -130,19 +129,33 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const findSprintForDate = (dateStr: string | undefined): string | null => {
     if (!dateStr || sprints.length === 0) return null;
-    const matched = sprints.find(s => dateStr >= s.startDate && dateStr <= s.endDate);
+    const itemDate = new Date(dateStr + 'T12:00:00');
+    const matched = sprints.find(s => {
+      const sStart = new Date(s.startDate + 'T00:00:00');
+      const sEnd = new Date(s.endDate + 'T23:59:59');
+      return itemDate >= sStart && itemDate <= sEnd;
+    });
     return matched ? String(matched.id) : null;
   };
 
   const syncTasksWithSprints = async () => {
-    if (!supabase) return;
-    const itemsWithDates = workItems.filter(i => i.endDate);
-    for (const item of itemsWithDates) {
-      const targetSprintId = findSprintForDate(item.endDate);
-      if (targetSprintId && String(targetSprintId) !== String(item.sprintId)) {
-        await supabase.from('work_items').update({ sprint_id: targetSprintId }).eq('id', item.id);
-      }
-    }
+    if (!supabase || workItems.length === 0) return;
+    
+    const updatesPromises = workItems
+      .filter(i => i.endDate) // Só itens com data
+      .map(async (item) => {
+        const targetSprintId = findSprintForDate(item.endDate);
+        const currentSprintId = item.sprintId ? String(item.sprintId) : null;
+        
+        if (targetSprintId !== currentSprintId) {
+          return supabase.from('work_items')
+            .update({ sprint_id: targetSprintId })
+            .eq('id', item.id);
+        }
+        return null;
+      });
+
+    await Promise.all(updatesPromises);
     await fetchData(); 
   };
 
@@ -192,13 +205,12 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (updates.startDate !== undefined) pg.start_date = updates.startDate || null;
     if (updates.endDate !== undefined) pg.end_date = updates.endDate || null;
     if (updates.parentId !== undefined) pg.parent_id = updates.parentId || null;
-    if (updates.sprintId !== undefined) pg.sprint_id = updates.sprintId ? String(updates.sprintId) : null;
+    if (updates.sprintId !== undefined) pg.sprint_id = (updates.sprintId === null || updates.sprintId === "") ? null : String(updates.sprintId);
     if (updates.workstreamId !== undefined) pg.workstream_id = updates.workstreamId || null;
     if (updates.column !== undefined) pg.column_name = updates.column;
     if (updates.blockReason !== undefined) pg.block_reason = updates.blockReason || null;
     if (updates.attachments !== undefined) pg.attachments = updates.attachments;
 
-    // NOVOS CAMPOS DE CUSTO PARA MAPEAR PARA O POSTGRES
     if (updates.costItem !== undefined) pg.cost_item = updates.costItem;
     if (updates.costType !== undefined) pg.cost_type = updates.costType;
     if (updates.requestNum !== undefined) pg.request_num = updates.requestNum;

@@ -126,7 +126,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6 p-4 lg:p-6 bg-slate-50 rounded-3xl border border-slate-100 shadow-inner">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Status</label>
               <select className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={item.status} onChange={(e) => handleUpdate({ status: e.target.value as any })}>
                 {Object.values(ItemStatus).map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -152,11 +152,11 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data Início</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><Calendar size={10}/> Data Início</label>
               <input type="date" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={localStartDate} onChange={(e) => setLocalStartDate(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data Fim</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><Calendar size={10}/> Data Fim</label>
               <input type="date" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={localEndDate} onChange={(e) => setLocalEndDate(e.target.value)} />
             </div>
           </div>
@@ -166,7 +166,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
               <DollarSign size={16} className="text-emerald-500" /> Detalhes de Custo
             </h3>
             <div className="space-y-4 p-4 lg:p-6 bg-emerald-50/30 rounded-3xl border border-emerald-100">
-               <input type="text" className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white" value={localCostItem} onChange={(e) => setLocalCostItem(e.target.value)} placeholder="Item / Serviço" />
+               <input type="text" className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white shadow-sm" value={localCostItem} onChange={(e) => setLocalCostItem(e.target.value)} placeholder="Item / Serviço" />
                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Valor Planejado</label>
