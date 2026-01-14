@@ -69,40 +69,38 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setSprints(mappedSprints);
         
         if (selectedSprintId && !mappedSprints.find(s => s.id === String(selectedSprintId))) {
-          setSelectedSprintId(mappedSprints.length > 0 ? mappedSprints[mappedSprints.length - 1].id : null);
+          // Mantém a seleção se ela ainda existir, senão limpa ou pega a última
         }
       }
 
       if (wRes.data) {
-        const mappedItems = wRes.data.map(item => {
-          return {
-            id: String(item.id),
-            type: item.type as ItemType,
-            title: item.title,
-            description: item.description || '',
-            priority: item.priority as ItemPriority || ItemPriority.P3,
-            effort: item.effort || 0,
-            kpi: item.kpi || '', 
-            kpiImpact: item.kpi_impact || '', 
-            assigneeId: item.assignee_id ? String(item.assignee_id) : undefined,
-            status: (item.status || ItemStatus.NEW) as ItemStatus,
-            column: (item.column_name || BoardColumn.TODO) as BoardColumn,
-            parentId: item.parent_id ? String(item.parent_id) : undefined,
-            sprintId: item.sprint_id ? String(item.sprint_id) : undefined,
-            workstreamId: item.workstream_id ? String(item.workstream_id) : undefined,
-            blocked: item.blocked || false,
-            blockReason: item.block_reason || '',
-            startDate: item.start_date,
-            endDate: item.end_date,
-            attachments: item.attachments || [],
-            costItem: item.cost_item || '',
-            costType: item.cost_type || 'OPEX',
-            requestNum: item.request_num || '',
-            orderNum: item.order_num || '',
-            billingStatus: item.billing_status || 'Em aberto',
-            costValue: item.cost_value || 0
-          };
-        });
+        const mappedItems = wRes.data.map(item => ({
+          id: String(item.id),
+          type: item.type as ItemType,
+          title: item.title,
+          description: item.description || '',
+          priority: item.priority as ItemPriority || ItemPriority.P3,
+          effort: item.effort || 0,
+          kpi: item.kpi || '', 
+          kpiImpact: item.kpi_impact || '', 
+          assigneeId: item.assignee_id ? String(item.assignee_id) : undefined,
+          status: (item.status || ItemStatus.NEW) as ItemStatus,
+          column: (item.column_name || BoardColumn.TODO) as BoardColumn,
+          parentId: item.parent_id ? String(item.parent_id) : undefined,
+          sprintId: item.sprint_id ? String(item.sprint_id) : undefined,
+          workstreamId: item.workstream_id ? String(item.workstream_id) : undefined,
+          blocked: item.blocked || false,
+          blockReason: item.block_reason || '',
+          startDate: item.start_date,
+          endDate: item.end_date,
+          attachments: item.attachments || [],
+          costItem: item.cost_item || '',
+          costType: item.cost_type || 'OPEX',
+          requestNum: item.request_num || '',
+          orderNum: item.order_num || '',
+          billingStatus: item.billing_status || 'Em aberto',
+          costValue: item.cost_value || 0
+        }));
         setWorkItems(mappedItems);
       }
     } catch (error) {
@@ -121,28 +119,44 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => { supabase.removeChannel(channel); };
   }, [fetchData]);
 
-  const findSprintForDate = (dateStr: string | undefined): string | null => {
-    if (!dateStr || sprints.length === 0) return null;
-    const itemDate = new Date(dateStr + 'T12:00:00');
-    const matched = sprints.find(s => {
-      const sStart = new Date(s.startDate + 'T00:00:00');
-      const sEnd = new Date(s.endDate + 'T23:59:59');
+  // Função crítica de comparação de datas normalizada para evitar erros de Timezone
+  const findSprintForDate = (dateStr: string | undefined, currentSprints: Sprint[]): string | null => {
+    if (!dateStr || currentSprints.length === 0) return null;
+    
+    // Normaliza para o meio do dia para evitar que 00:00 de um dia vire 23:00 do dia anterior no Vercel
+    const itemDate = new Date(`${dateStr}T12:00:00Z`); 
+    
+    const matched = currentSprints.find(s => {
+      const sStart = new Date(`${s.startDate}T00:00:00Z`);
+      const sEnd = new Date(`${s.endDate}T23:59:59Z`);
       return itemDate >= sStart && itemDate <= sEnd;
     });
+    
     return matched ? String(matched.id) : null;
   };
 
   const syncTasksWithSprints = async () => {
     if (!supabase) return;
     
-    // Pegar dados frescos do banco antes de sincronizar para evitar discrepância
+    // Forçar busca de dados frescos para garantir que as Sprints criadas no Vercel estejam presentes
+    const { data: freshSprints } = await supabase.from('sprints').select('*');
     const { data: freshItems } = await supabase.from('work_items').select('*');
-    if (!freshItems) return;
+    
+    if (!freshSprints || !freshItems) return;
+
+    const mappedSprints = freshSprints.map(s => ({
+      id: String(s.id), 
+      startDate: s.start_date,
+      endDate: s.end_date,
+      name: s.name,
+      objective: s.objective,
+      status: s.status
+    }));
 
     const updatesPromises = freshItems
       .filter(i => i.end_date)
       .map(async (item) => {
-        const targetSprintId = findSprintForDate(item.end_date);
+        const targetSprintId = findSprintForDate(item.end_date, mappedSprints);
         const currentSprintId = item.sprint_id ? String(item.sprint_id) : null;
         
         if (targetSprintId !== currentSprintId) {
@@ -163,7 +177,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     
     let autoSprintId = item.sprintId || null;
     if (!autoSprintId && item.endDate) {
-      autoSprintId = findSprintForDate(item.endDate);
+      autoSprintId = findSprintForDate(item.endDate, sprints);
     }
     
     const payload = {
@@ -211,13 +225,13 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (updates.costItem !== undefined) pg.cost_item = updates.costItem;
     if (updates.costType !== undefined) pg.cost_type = updates.costType;
-    if (updates.requestNum !== undefined) pg.request_num = updates.requestNum;
-    if (updates.orderNum !== undefined) pg.order_num = updates.orderNum;
-    if (updates.billingStatus !== undefined) pg.billing_status = updates.billingStatus;
+    if (updates.requestNum !== undefined) pg.request_num = updates.request_num;
+    if (updates.orderNum !== undefined) pg.order_num = updates.order_num;
+    if (updates.billingStatus !== undefined) pg.billing_status = updates.billing_status;
     if (updates.costValue !== undefined) pg.cost_value = updates.costValue;
 
     const { error } = await supabase.from('work_items').update(pg).eq('id', id);
-    if (!error) await fetchData(); // Forçar refresh para garantir que o Vercel veja a mudança
+    if (!error) await fetchData(); 
   };
 
   const addSprint = async (s: Partial<Sprint>) => {
@@ -229,7 +243,10 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       objective: s.objective, 
       status: s.status || 'Planejada'
     }]).select();
-    if (!error && data && data.length > 0) setSelectedSprintId(String(data[0].id));
+    
+    if (!error && data && data.length > 0) {
+      setSelectedSprintId(String(data[0].id));
+    }
     await fetchData();
   };
 
@@ -254,6 +271,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const deleteSprint = async (id: string) => {
     if (!supabase || !id) return;
+    // Remove a referência da sprint nos itens antes de deletar a sprint
     await supabase.from('work_items').update({ sprint_id: null }).eq('sprint_id', id);
     await supabase.from('sprints').delete().eq('id', id);
     if (selectedSprintId === String(id)) setSelectedSprintId(null);
