@@ -100,7 +100,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
 
   return (
     <>
-      <div className="fixed inset-y-0 right-0 w-full sm:w-[500px] lg:w-[580px] bg-white shadow-2xl z-[500] border-l border-gray-200 flex flex-col transform transition-transform animate-in slide-in-from-right duration-300">
+      <div className="fixed inset-y-0 right-0 w-full sm:w-[500px] lg:w-[620px] bg-white shadow-2xl z-[500] border-l border-gray-200 flex flex-col transform transition-transform animate-in slide-in-from-right duration-300">
         <div className="h-16 flex items-center justify-between px-4 lg:px-6 border-b border-gray-100 bg-slate-50 shrink-0">
           <div className="flex items-center gap-3">
             <span className="text-xs font-black text-slate-400 font-mono tracking-tighter">{item.id}</span>
@@ -113,7 +113,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 lg:p-8 custom-scrollbar space-y-6 lg:space-y-10">
+        <div className="flex-1 overflow-y-auto p-4 lg:p-8 custom-scrollbar space-y-6 lg:space-y-8">
           <section>
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Título</label>
             <textarea 
@@ -124,7 +124,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
             />
           </section>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6 p-4 lg:p-6 bg-slate-50 rounded-3xl border border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6 p-4 lg:p-6 bg-slate-50 rounded-3xl border border-slate-100 shadow-inner">
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</label>
               <select className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={item.status} onChange={(e) => handleUpdate({ status: e.target.value as any })}>
@@ -138,49 +138,100 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
                 {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
             </div>
+            
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sprint / Ciclo</label>
+              <select className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={localSprintId} onChange={(e) => setLocalSprintId(e.target.value)}>
+                <option value="">Backlog Geral</option>
+                {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Esforço (Pontos)</label>
+              <input type="number" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={item.effort} onChange={(e) => handleUpdate({ effort: Number(e.target.value) })} />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data Início</label>
+              <input type="date" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={localStartDate} onChange={(e) => setLocalStartDate(e.target.value)} />
+            </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data Fim</label>
               <input type="date" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={localEndDate} onChange={(e) => setLocalEndDate(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Esforço</label>
-              <input type="number" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={item.effort} onChange={(e) => handleUpdate({ effort: Number(e.target.value) })} />
             </div>
           </div>
 
           <section className="space-y-4">
             <h3 className="text-[11px] font-black text-slate-800 uppercase flex items-center gap-2">
-              <DollarSign size={16} className="text-emerald-500" /> Custos
+              <DollarSign size={16} className="text-emerald-500" /> Detalhes de Custo
             </h3>
             <div className="space-y-4 p-4 lg:p-6 bg-emerald-50/30 rounded-3xl border border-emerald-100">
                <input type="text" className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white" value={localCostItem} onChange={(e) => setLocalCostItem(e.target.value)} placeholder="Item / Serviço" />
                <div className="grid grid-cols-2 gap-4">
-                  <input type="number" className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white" value={localCostValue} onChange={(e) => setLocalCostValue(e.target.value)} placeholder="Valor R$" />
-                  <select className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white" value={localCostType} onChange={(e) => setLocalCostType(e.target.value)}>
-                    <option value="OPEX">OPEX</option>
-                    <option value="CAPEX">CAPEX</option>
-                  </select>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Valor Planejado</label>
+                    <input type="number" className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white" value={localCostValue} onChange={(e) => setLocalCostValue(e.target.value)} placeholder="R$ 0.00" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Tipo de Verba</label>
+                    <select className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white" value={localCostType} onChange={(e) => setLocalCostType(e.target.value)}>
+                      <option value="OPEX">OPEX</option>
+                      <option value="CAPEX">CAPEX</option>
+                      <option value="SEVIM">SEVIM</option>
+                      <option value="OUTROS">OUTROS</option>
+                    </select>
+                  </div>
+               </div>
+               <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase">Requisição</label>
+                    <input type="text" className="w-full text-xs font-bold border border-slate-100 rounded-lg p-2 bg-white" value={localRequestNum} onChange={(e) => setLocalRequestNum(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase">Pedido</label>
+                    <input type="text" className="w-full text-xs font-bold border border-slate-100 rounded-lg p-2 bg-white" value={localOrderNum} onChange={(e) => setLocalOrderNum(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase">Faturamento</label>
+                    <select className="w-full text-xs font-bold border border-slate-100 rounded-lg p-2 bg-white" value={localBillingStatus} onChange={(e) => setLocalBillingStatus(e.target.value)}>
+                      <option value="Em aberto">Em aberto</option>
+                      <option value="Pedido Emitido">Pedido Emitido</option>
+                      <option value="Faturado">Faturado</option>
+                    </select>
+                  </div>
                </div>
             </div>
           </section>
 
           <section>
             <h3 className="text-[11px] font-black text-slate-800 uppercase mb-4 flex items-center gap-2">
-              <AlignLeft size={16} className="text-slate-400" /> Detalhamento
+              <AlignLeft size={16} className="text-slate-400" /> Descrição e KPI
             </h3>
-            <textarea 
-              className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 lg:p-6 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:bg-white min-h-[150px] transition-all"
-              placeholder="Descreva as especificações..."
-              value={localDescription}
-              onChange={(e) => setLocalDescription(e.target.value)}
-            />
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase">Métrica / KPI</label>
+                  <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:bg-white" value={localKpi} onChange={(e) => setLocalKpi(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase">Impacto Esperado</label>
+                  <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:bg-white" value={localKpiImpact} onChange={(e) => setLocalKpiImpact(e.target.value)} />
+                </div>
+              </div>
+              <textarea 
+                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 lg:p-6 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:bg-white min-h-[150px] transition-all"
+                placeholder="Descreva as especificações detalhadas..."
+                value={localDescription}
+                onChange={(e) => setLocalDescription(e.target.value)}
+              />
+            </div>
           </section>
 
           <section className="space-y-4 pb-20">
              <div className="flex items-center justify-between">
                 <h3 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Anexos</h3>
                 <button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-[10px] font-black">
-                  {isUploading ? 'SUBINDO...' : 'SUBIR'}
+                  {isUploading ? 'SUBINDO...' : 'ADICIONAR'}
                 </button>
                 <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileSelect} />
              </div>
@@ -196,10 +247,10 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
         </div>
 
         <div className="p-4 lg:p-8 border-t bg-slate-50 flex gap-4 shrink-0">
-          <button onClick={handleDelete} className={`flex-1 py-4 rounded-2xl text-xs font-black transition-all ${isConfirmingDelete ? 'bg-red-600 text-white animate-pulse' : 'bg-white text-red-600 border-2 border-red-100'}`}>
-            {isConfirmingDelete ? 'CONFIRMAR' : 'EXCLUIR'}
+          <button onClick={handleDelete} className={`flex-1 py-4 rounded-2xl text-xs font-black transition-all ${isConfirmingDelete ? 'bg-red-600 text-white animate-pulse' : 'bg-white text-red-600 border-2 border-red-100 shadow-sm'}`}>
+            {isConfirmingDelete ? 'CONFIRMAR EXCLUSÃO' : 'EXCLUIR ITEM'}
           </button>
-          <button onClick={handleClose} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl text-xs font-black shadow-xl">FECHAR</button>
+          <button onClick={handleClose} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl text-xs font-black shadow-xl hover:bg-slate-800 transition-all">FECHAR PAINEL</button>
         </div>
       </div>
 
