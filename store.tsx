@@ -75,12 +75,6 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (wRes.data) {
         const mappedItems = wRes.data.map(item => {
-          let col = item.column_name as BoardColumn;
-          if (!col || col === null) col = BoardColumn.TODO;
-          
-          let stat = item.status as ItemStatus;
-          if (!stat || stat === null) stat = ItemStatus.NEW;
-
           return {
             id: String(item.id),
             type: item.type as ItemType,
@@ -91,8 +85,8 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             kpi: item.kpi || '', 
             kpiImpact: item.kpi_impact || '', 
             assigneeId: item.assignee_id ? String(item.assignee_id) : undefined,
-            status: stat,
-            column: col,
+            status: (item.status || ItemStatus.NEW) as ItemStatus,
+            column: (item.column_name || BoardColumn.TODO) as BoardColumn,
             parentId: item.parent_id ? String(item.parent_id) : undefined,
             sprintId: item.sprint_id ? String(item.sprint_id) : undefined,
             workstreamId: item.workstream_id ? String(item.workstream_id) : undefined,
@@ -139,13 +133,17 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const syncTasksWithSprints = async () => {
-    if (!supabase || workItems.length === 0) return;
+    if (!supabase) return;
     
-    const updatesPromises = workItems
-      .filter(i => i.endDate) // Só itens com data
+    // Pegar dados frescos do banco antes de sincronizar para evitar discrepância
+    const { data: freshItems } = await supabase.from('work_items').select('*');
+    if (!freshItems) return;
+
+    const updatesPromises = freshItems
+      .filter(i => i.end_date)
       .map(async (item) => {
-        const targetSprintId = findSprintForDate(item.endDate);
-        const currentSprintId = item.sprintId ? String(item.sprintId) : null;
+        const targetSprintId = findSprintForDate(item.end_date);
+        const currentSprintId = item.sprint_id ? String(item.sprint_id) : null;
         
         if (targetSprintId !== currentSprintId) {
           return supabase.from('work_items')
@@ -186,7 +184,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
     
     await supabase.from('work_items').insert([payload]);
-    fetchData();
+    await fetchData();
   };
 
   const updateWorkItem = async (id: string, updates: any) => {
@@ -218,8 +216,8 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (updates.billingStatus !== undefined) pg.billing_status = updates.billingStatus;
     if (updates.costValue !== undefined) pg.cost_value = updates.costValue;
 
-    await supabase.from('work_items').update(pg).eq('id', id);
-    fetchData();
+    const { error } = await supabase.from('work_items').update(pg).eq('id', id);
+    if (!error) await fetchData(); // Forçar refresh para garantir que o Vercel veja a mudança
   };
 
   const addSprint = async (s: Partial<Sprint>) => {
@@ -232,7 +230,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       status: s.status || 'Planejada'
     }]).select();
     if (!error && data && data.length > 0) setSelectedSprintId(String(data[0].id));
-    fetchData();
+    await fetchData();
   };
 
   const updateSprint = async (id: string, updates: Partial<Sprint>) => {
@@ -245,13 +243,13 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       status: updates.status 
     };
     await supabase.from('sprints').update(pg).eq('id', id);
-    fetchData();
+    await fetchData();
   };
 
   const deleteWorkItem = async (id: string) => {
     if (!supabase) return;
     await supabase.from('work_items').delete().eq('id', id);
-    fetchData();
+    await fetchData();
   };
 
   const deleteSprint = async (id: string) => {
@@ -271,13 +269,13 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (data) avatar_url = supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;
     }
     await supabase.from('profiles').insert([{ name, avatar_url }]);
-    fetchData();
+    await fetchData();
   };
 
   const removeUser = async (id: string) => {
     if (!supabase) return;
     await supabase.from('profiles').delete().eq('id', id);
-    fetchData();
+    await fetchData();
   };
 
   const uploadAttachment = async (itemId: string, file: File) => {
@@ -292,7 +290,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const seedData = async () => { fetchData(); };
+  const seedData = async () => { await fetchData(); };
 
   const selectedSprint = sprints.find(s => String(s.id).trim() === String(selectedSprintId).trim());
 

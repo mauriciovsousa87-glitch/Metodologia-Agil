@@ -34,6 +34,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
   const [localBillingStatus, setLocalBillingStatus] = useState((item as any).billingStatus || 'Em aberto');
   const [localCostValue, setLocalCostValue] = useState((item as any).costValue || 0);
 
+  // Sincronizar estado local quando o item muda
   useEffect(() => {
     setLocalTitle(item.title);
     setLocalKpi(item.kpi || '');
@@ -50,33 +51,50 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
     setLocalCostValue((item as any).costValue || 0);
   }, [item.id]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const updates: any = {};
+  // Função para salvar imediatamente as alterações (usada em eventos críticos como blur ou change de data)
+  const saveChanges = async (manualUpdates?: any) => {
+    const updates: any = manualUpdates || {};
+    
+    // Se não houver updates manuais, verifica os campos locais
+    if (!manualUpdates) {
       if (localTitle !== item.title) updates.title = localTitle;
       if (localKpi !== (item.kpi || '')) updates.kpi = localKpi;
       if (localKpiImpact !== (item.kpiImpact || '')) updates.kpiImpact = localKpiImpact;
       if (localDescription !== (item.description || '')) updates.description = localDescription;
       if (localStartDate !== (item.startDate || '')) updates.startDate = localStartDate || null;
       if (localEndDate !== (item.endDate || '')) updates.endDate = localEndDate || null;
-      if (localSprintId !== (item.sprintId || '')) updates.sprintId = localSprintId ? String(localSprintId) : null;
+      if (localSprintId !== (item.sprintId || '')) updates.sprintId = localSprintId || null;
       if (localCostItem !== ((item as any).costItem || '')) updates.costItem = localCostItem;
       if (localCostType !== ((item as any).costType || 'OPEX')) updates.costType = localCostType;
       if (localRequestNum !== ((item as any).requestNum || '')) updates.requestNum = localRequestNum;
       if (localOrderNum !== ((item as any).orderNum || '')) updates.orderNum = localOrderNum;
       if (localBillingStatus !== ((item as any).billingStatus || 'Em aberto')) updates.billingStatus = localBillingStatus;
       if (Number(localCostValue) !== Number((item as any).costValue || 0)) updates.costValue = Number(localCostValue);
+    }
 
-      if (Object.keys(updates).length > 0) updateWorkItem(item.id, updates);
-    }, 800);
+    if (Object.keys(updates).length > 0) {
+      await updateWorkItem(item.id, updates);
+    }
+  };
+
+  // Auto-save com debounce para campos de texto longos (Descrição e Título)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localDescription !== (item.description || '') || localTitle !== item.title) {
+        saveChanges();
+      }
+    }, 1500);
     return () => clearTimeout(timer);
-  }, [
-    localTitle, localKpi, localKpiImpact, localDescription, localStartDate, localEndDate, localSprintId,
-    localCostItem, localCostType, localRequestNum, localOrderNum, localBillingStatus, localCostValue
-  ]);
+  }, [localDescription, localTitle]);
 
-  const handleUpdate = (updates: Partial<WorkItem>) => updateWorkItem(item.id, updates);
-  const handleClose = () => onClose();
+  const handleUpdateImmediate = async (updates: Partial<WorkItem>) => {
+    await updateWorkItem(item.id, updates);
+  };
+
+  const handleClose = async () => {
+    await saveChanges(); // Garantir que salva tudo antes de fechar
+    onClose();
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -90,7 +108,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
   const removeAttachment = (e: React.MouseEvent, attId: string) => {
     e.stopPropagation();
     const filtered = (item.attachments || []).filter(a => a.id !== attId);
-    handleUpdate({ attachments: filtered } as any);
+    handleUpdateImmediate({ attachments: filtered } as any);
   };
 
   const handleDelete = async () => {
@@ -121,19 +139,20 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
               className="w-full text-xl lg:text-2xl font-black text-slate-900 bg-transparent hover:bg-slate-50 focus:bg-white p-2 rounded-xl transition-all outline-none resize-none border-2 border-transparent focus:border-blue-100"
               value={localTitle}
               onChange={(e) => setLocalTitle(e.target.value)}
+              onBlur={() => saveChanges()}
             />
           </section>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6 p-4 lg:p-6 bg-slate-50 rounded-3xl border border-slate-100 shadow-inner">
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Status</label>
-              <select className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={item.status} onChange={(e) => handleUpdate({ status: e.target.value as any })}>
+              <select className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white cursor-pointer" value={item.status} onChange={(e) => handleUpdateImmediate({ status: e.target.value as any })}>
                 {Object.values(ItemStatus).map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Responsável</label>
-              <select className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={item.assigneeId || ''} onChange={(e) => handleUpdate({ assigneeId: e.target.value })}>
+              <select className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white cursor-pointer" value={item.assigneeId || ''} onChange={(e) => handleUpdateImmediate({ assigneeId: e.target.value })}>
                 <option value="">Não atribuído</option>
                 {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
@@ -141,23 +160,23 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
             
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sprint / Ciclo</label>
-              <select className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={localSprintId} onChange={(e) => setLocalSprintId(e.target.value)}>
+              <select className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white cursor-pointer" value={localSprintId} onChange={(e) => { setLocalSprintId(e.target.value); saveChanges({ sprintId: e.target.value || null }); }}>
                 <option value="">Backlog Geral</option>
                 {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Esforço (Pontos)</label>
-              <input type="number" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={item.effort} onChange={(e) => handleUpdate({ effort: Number(e.target.value) })} />
+              <input type="number" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={item.effort} onChange={(e) => handleUpdateImmediate({ effort: Number(e.target.value) })} />
             </div>
 
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><Calendar size={10}/> Data Início</label>
-              <input type="date" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={localStartDate} onChange={(e) => setLocalStartDate(e.target.value)} />
+              <input type="date" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={localStartDate} onChange={(e) => { setLocalStartDate(e.target.value); saveChanges({ startDate: e.target.value || null }); }} />
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><Calendar size={10}/> Data Fim</label>
-              <input type="date" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={localEndDate} onChange={(e) => setLocalEndDate(e.target.value)} />
+              <input type="date" className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white" value={localEndDate} onChange={(e) => { setLocalEndDate(e.target.value); saveChanges({ endDate: e.target.value || null }); }} />
             </div>
           </div>
 
@@ -166,15 +185,15 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
               <DollarSign size={16} className="text-emerald-500" /> Detalhes de Custo
             </h3>
             <div className="space-y-4 p-4 lg:p-6 bg-emerald-50/30 rounded-3xl border border-emerald-100">
-               <input type="text" className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white shadow-sm" value={localCostItem} onChange={(e) => setLocalCostItem(e.target.value)} placeholder="Item / Serviço" />
+               <input type="text" className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white shadow-sm" value={localCostItem} onChange={(e) => setLocalCostItem(e.target.value)} onBlur={() => saveChanges()} placeholder="Item / Serviço" />
                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Valor Planejado</label>
-                    <input type="number" className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white" value={localCostValue} onChange={(e) => setLocalCostValue(e.target.value)} placeholder="R$ 0.00" />
+                    <input type="number" className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white" value={localCostValue} onChange={(e) => setLocalCostValue(e.target.value)} onBlur={() => saveChanges()} placeholder="R$ 0.00" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Tipo de Verba</label>
-                    <select className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white" value={localCostType} onChange={(e) => setLocalCostType(e.target.value)}>
+                    <select className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white cursor-pointer" value={localCostType} onChange={(e) => { setLocalCostType(e.target.value); saveChanges({ costType: e.target.value }); }}>
                       <option value="OPEX">OPEX</option>
                       <option value="CAPEX">CAPEX</option>
                       <option value="SEVIM">SEVIM</option>
@@ -185,15 +204,15 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
                <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <label className="text-[8px] font-black text-slate-400 uppercase">Requisição</label>
-                    <input type="text" className="w-full text-xs font-bold border border-slate-100 rounded-lg p-2 bg-white" value={localRequestNum} onChange={(e) => setLocalRequestNum(e.target.value)} />
+                    <input type="text" className="w-full text-xs font-bold border border-slate-100 rounded-lg p-2 bg-white" value={localRequestNum} onChange={(e) => setLocalRequestNum(e.target.value)} onBlur={() => saveChanges()} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[8px] font-black text-slate-400 uppercase">Pedido</label>
-                    <input type="text" className="w-full text-xs font-bold border border-slate-100 rounded-lg p-2 bg-white" value={localOrderNum} onChange={(e) => setLocalOrderNum(e.target.value)} />
+                    <input type="text" className="w-full text-xs font-bold border border-slate-100 rounded-lg p-2 bg-white" value={localOrderNum} onChange={(e) => setLocalOrderNum(e.target.value)} onBlur={() => saveChanges()} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[8px] font-black text-slate-400 uppercase">Faturamento</label>
-                    <select className="w-full text-xs font-bold border border-slate-100 rounded-lg p-2 bg-white" value={localBillingStatus} onChange={(e) => setLocalBillingStatus(e.target.value)}>
+                    <select className="w-full text-xs font-bold border border-slate-100 rounded-lg p-2 bg-white cursor-pointer" value={localBillingStatus} onChange={(e) => { setLocalBillingStatus(e.target.value); saveChanges({ billingStatus: e.target.value }); }}>
                       <option value="Em aberto">Em aberto</option>
                       <option value="Pedido Emitido">Pedido Emitido</option>
                       <option value="Faturado">Faturado</option>
@@ -211,11 +230,11 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase">Métrica / KPI</label>
-                  <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:bg-white" value={localKpi} onChange={(e) => setLocalKpi(e.target.value)} />
+                  <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:bg-white" value={localKpi} onChange={(e) => setLocalKpi(e.target.value)} onBlur={() => saveChanges()} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-black text-slate-400 uppercase">Impacto Esperado</label>
-                  <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:bg-white" value={localKpiImpact} onChange={(e) => setLocalKpiImpact(e.target.value)} />
+                  <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:bg-white" value={localKpiImpact} onChange={(e) => setLocalKpiImpact(e.target.value)} onBlur={() => saveChanges()} />
                 </div>
               </div>
               <textarea 
@@ -223,6 +242,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
                 placeholder="Descreva as especificações detalhadas..."
                 value={localDescription}
                 onChange={(e) => setLocalDescription(e.target.value)}
+                onBlur={() => saveChanges()}
               />
             </div>
           </section>
@@ -250,7 +270,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
           <button onClick={handleDelete} className={`flex-1 py-4 rounded-2xl text-xs font-black transition-all ${isConfirmingDelete ? 'bg-red-600 text-white animate-pulse' : 'bg-white text-red-600 border-2 border-red-100 shadow-sm'}`}>
             {isConfirmingDelete ? 'CONFIRMAR EXCLUSÃO' : 'EXCLUIR ITEM'}
           </button>
-          <button onClick={handleClose} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl text-xs font-black shadow-xl hover:bg-slate-800 transition-all">FECHAR PAINEL</button>
+          <button onClick={handleClose} className="flex-1 py-4 bg-slate-900 text-white rounded-2xl text-xs font-black shadow-xl hover:bg-slate-800 transition-all uppercase tracking-widest">Fechar e Salvar</button>
         </div>
       </div>
 
