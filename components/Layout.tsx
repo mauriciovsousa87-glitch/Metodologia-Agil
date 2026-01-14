@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { 
   LayoutGrid, ListTodo, BarChart3, GanttChartSquare, Settings, 
-  Menu, X, Plus, Bell, AlertCircle, Calendar, DollarSign
+  Menu, X, Plus, Bell, AlertCircle, Calendar, DollarSign, GitCommitHorizontal
 } from 'lucide-react';
 import { ViewType } from '../types';
 import { useAgile } from '../store';
@@ -28,6 +28,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
   const navItems = [
     { id: 'Sprints' as ViewType, label: 'Sprints', icon: LayoutGrid },
     { id: 'Backlog' as ViewType, label: 'Backlog', icon: ListTodo },
+    { id: 'Timeline' as ViewType, label: 'Linha do Tempo', icon: GitCommitHorizontal },
     { id: 'Finance' as ViewType, label: 'Gestão de Custos', icon: DollarSign },
     { id: 'Dashboard' as ViewType, label: 'Dashboard', icon: BarChart3 },
     { id: 'Gantt' as ViewType, label: 'Gantt', icon: GanttChartSquare },
