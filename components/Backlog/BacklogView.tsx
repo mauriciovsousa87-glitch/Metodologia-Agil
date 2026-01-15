@@ -2,7 +2,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   ChevronRight, ChevronDown, Filter, 
-  Layers, Trash2, BarChart2, Zap
+  Layers, Trash2, BarChart2, Zap, GripVertical,
+  MessageCircle
 } from 'lucide-react';
 import { useAgile } from '../../store';
 import { WorkItem, ItemType, ItemStatus } from '../../types';
@@ -11,7 +12,7 @@ import ItemPanel from './ItemPanel';
 type SortKey = 'priority' | 'assigneeId' | 'kpi' | 'kpiImpact' | 'effort' | 'status' | 'id' | 'title' | 'sprintId';
 
 const BacklogView: React.FC = () => {
-  const { workItems, users, sprints, addWorkItem, deleteWorkItem } = useAgile();
+  const { workItems, users, sprints, addWorkItem, deleteWorkItem, updateWorkItem } = useAgile();
   const [isHierarchical, setIsHierarchical] = useState(true);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -19,6 +20,9 @@ const BacklogView: React.FC = () => {
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>(null);
   const [armDeleteId, setArmDeleteId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
+  
+  const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   const [colWidths, setColWidths] = useState(() => {
     const saved = localStorage.getItem('agile_backlog_widths_v7');
@@ -43,25 +47,25 @@ const BacklogView: React.FC = () => {
 
   const resizingRef = useRef<{ key: keyof typeof colWidths, startX: number, startWidth: number } | null>(null);
 
-  const onMouseDown = (key: keyof typeof colWidths, e: React.MouseEvent) => {
+  const onMouseDownResize = (key: keyof typeof colWidths, e: React.MouseEvent) => {
     resizingRef.current = { key, startX: e.pageX, startWidth: colWidths[key] };
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('mousemove', onMouseMoveResize);
+    document.addEventListener('mouseup', onMouseUpResize);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
   };
 
-  const onMouseMove = (e: MouseEvent) => {
+  const onMouseMoveResize = (e: MouseEvent) => {
     if (!resizingRef.current) return;
     const { key, startX, startWidth } = resizingRef.current;
     const delta = e.pageX - startX;
     setColWidths(prev => ({ ...prev, [key]: Math.max(30, startWidth + delta) }));
   };
 
-  const onMouseUp = () => {
+  const onMouseUpResize = () => {
     resizingRef.current = null;
-    document.removeEventListener('mousemove', onMouseMove);
-    document.removeEventListener('mouseup', onMouseUp);
+    document.removeEventListener('mousemove', onMouseMoveResize);
+    document.removeEventListener('mouseup', onMouseUpResize);
     document.body.style.cursor = 'default';
     document.body.style.userSelect = 'auto';
   };
@@ -81,7 +85,10 @@ const BacklogView: React.FC = () => {
   const sortedAndFilteredItems = useMemo(() => {
     let items = [...workItems];
     if (filterText) items = items.filter(i => i.title.toLowerCase().includes(filterText.toLowerCase()));
-    if (sortConfig) {
+    
+    if (!sortConfig) {
+      items.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+    } else {
       items.sort((a, b) => {
         let valA: any = a[sortConfig.key] || '';
         let valB: any = b[sortConfig.key] || '';
@@ -96,6 +103,80 @@ const BacklogView: React.FC = () => {
     }
     return items;
   }, [workItems, filterText, sortConfig, users]);
+
+  const handleShareWhatsApp = () => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const monthName = now.toLocaleDateString('pt-BR', { month: 'long' }).toUpperCase();
+
+    const taskTypes = [ItemType.TASK, ItemType.BUG];
+    const monthlyTasks = workItems.filter(item => {
+      if (!item.endDate || !taskTypes.includes(item.type)) return false;
+      const date = new Date(item.endDate + 'T12:00:00');
+      return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+    });
+
+    if (monthlyTasks.length === 0) {
+      alert("Nenhuma tarefa ou bug planejado para este mês.");
+      return;
+    }
+
+    let message = `📅 *PLANEJAMENTO MENSAL - ${monthName} ${currentYear}*\n\n`;
+
+    const formatShortDate = (dateStr: string) => {
+      const d = new Date(dateStr + 'T12:00:00');
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    };
+
+    // Estrutura hierárquica rigorosa
+    const hierarchy: Record<string, Record<string, WorkItem[]>> = {};
+
+    monthlyTasks.forEach(task => {
+      // 1. Localizar a Entrega (Pai direto)
+      const delivery = workItems.find(p => p.id === task.parentId);
+      if (!delivery) return; // FILTRO ANTI-LIXO: Se não tem entrega, ignora
+
+      // 2. Localizar a Iniciativa (Pai da entrega)
+      const initiative = workItems.find(p => p.id === delivery.parentId);
+      if (!initiative) return; // FILTRO ANTI-LIXO: Se não tem iniciativa, ignora
+
+      const initTitle = initiative.title.toUpperCase();
+      const deliveryTitle = delivery.title;
+
+      if (!hierarchy[initTitle]) hierarchy[initTitle] = {};
+      if (!hierarchy[initTitle][deliveryTitle]) hierarchy[initTitle][deliveryTitle] = [];
+      
+      hierarchy[initTitle][deliveryTitle].push(task);
+    });
+
+    // Construção da mensagem apenas com dados válidos
+    const iniciativasSorted = Object.keys(hierarchy).sort();
+
+    iniciativasSorted.forEach(initName => {
+      const entregas = hierarchy[initName];
+      
+      Object.entries(entregas).forEach(([deliveryName, tasks]) => {
+        // Parte 1: Nome da Iniciativa (Negrito)
+        message += `*${initName}*\n`;
+        // Parte 2: Nome da Entrega (Negrito)
+        message += `*${deliveryName}*\n`;
+        
+        // Parte 3: Lista de tarefas (Normal)
+        tasks.forEach(task => {
+          const assignee = users.find(u => u.id === task.assigneeId)?.name || 'Sem dono';
+          const deliveryDate = task.endDate ? formatShortDate(task.endDate) : 'S/D';
+          message += `${task.title}: @${assignee} | Data: ${deliveryDate}\n`;
+        });
+        message += `\n`; // Espaço entre os blocos
+      });
+    });
+
+    message += `_Gerado via Agile Master_ 🚀`;
+
+    const encodedMessage = encodeURIComponent(message);
+    window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
+  };
 
   const handleAddChild = async (parentId: string, type: ItemType) => {
     if (isProcessing) return;
@@ -112,36 +193,24 @@ const BacklogView: React.FC = () => {
     } finally { setIsProcessing(null); }
   };
 
-  // Função robusta de cálculo de progresso estritamente baseada em descendentes TR
   const calculateRollup = (item: WorkItem) => {
     if (item.type === ItemType.TASK || item.type === ItemType.BUG) {
       return { progress: item.status === ItemStatus.CLOSED ? 100 : 0 };
     }
-
     const getAllTRDescendants = (id: string): WorkItem[] => {
       let results: WorkItem[] = [];
       const children = workItems.filter(i => i.parentId === id);
       children.forEach(child => {
-        if (child.type === ItemType.TASK || child.type === ItemType.BUG) {
-          results.push(child);
-        } else {
-          results = [...results, ...getAllTRDescendants(child.id)];
-        }
+        if (child.type === ItemType.TASK || child.type === ItemType.BUG) results.push(child);
+        else results = [...results, ...getAllTRDescendants(child.id)];
       });
       return results;
     };
-
     const TRs = getAllTRDescendants(item.id);
     if (TRs.length === 0) return { progress: item.status === ItemStatus.CLOSED ? 100 : 0 };
-
     const totalEffort = TRs.reduce((acc, curr) => acc + (curr.effort || 0), 0);
     const completedEffort = TRs.filter(i => i.status === ItemStatus.CLOSED).reduce((acc, curr) => acc + (curr.effort || 0), 0);
-
-    if (totalEffort === 0) {
-      const doneCount = TRs.filter(i => i.status === ItemStatus.CLOSED).length;
-      return { progress: (doneCount / TRs.length) * 100 };
-    }
-
+    if (totalEffort === 0) return { progress: (TRs.filter(i => i.status === ItemStatus.CLOSED).length / TRs.length) * 100 };
     return { progress: (completedEffort / totalEffort) * 100 };
   };
 
@@ -156,6 +225,65 @@ const BacklogView: React.FC = () => {
     }
   };
 
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedItemId(id);
+    e.dataTransfer.setData('text/plain', id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    if (id !== draggedItemId) {
+      setDropTargetId(id);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDropTargetId(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const draggedId = e.dataTransfer.getData('text/plain');
+    setDropTargetId(null);
+    setDraggedItemId(null);
+
+    if (!draggedId || draggedId === targetId) return;
+
+    const draggedItem = workItems.find(i => i.id === draggedId);
+    const targetItem = workItems.find(i => i.id === targetId);
+
+    if (!draggedItem || !targetItem) return;
+
+    const updates: any = {};
+
+    if (draggedItem.type === targetItem.type) {
+      const targetTime = new Date(targetItem.createdAt || Date.now()).getTime();
+      updates.createdAt = new Date(targetTime - 1000).toISOString();
+      if (draggedItem.parentId !== targetItem.parentId) {
+        updates.parentId = targetItem.parentId || null;
+        updates.workstreamId = targetItem.workstreamId || (targetItem.type === ItemType.WORKSTREAM ? targetItem.id : null);
+      }
+    } else {
+      const isCompatible = 
+        (draggedItem.type === ItemType.INITIATIVE && targetItem.type === ItemType.WORKSTREAM) ||
+        (draggedItem.type === ItemType.DELIVERY && targetItem.type === ItemType.INITIATIVE) ||
+        ((draggedItem.type === ItemType.TASK || draggedItem.type === ItemType.BUG) && targetItem.type === ItemType.DELIVERY);
+
+      if (isCompatible) {
+        updates.parentId = targetItem.id;
+        updates.workstreamId = targetItem.type === ItemType.WORKSTREAM ? targetItem.id : targetItem.workstreamId;
+        updates.createdAt = new Date().toISOString();
+      } else {
+        return;
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await updateWorkItem(draggedId, updates);
+    }
+  };
+
   const renderItem = (item: WorkItem, depth: number = 0) => {
     const children = sortedAndFilteredItems.filter(i => i.parentId === item.id);
     const isExpanded = expandedItems.has(item.id);
@@ -163,10 +291,32 @@ const BacklogView: React.FC = () => {
     const assignee = users.find(u => u.id === item.assigneeId);
     const sprint = sprints.find(s => s.id === item.sprintId);
     const sigla = getItemSigla(item.type);
+    
+    const isTarget = dropTargetId === item.id;
+    const isDragged = draggedItemId === item.id;
 
     return (
       <React.Fragment key={item.id}>
-        <tr className={`border-b border-gray-100 hover:bg-blue-50/50 cursor-pointer transition-all group ${selectedItemId === item.id ? 'bg-blue-50' : ''}`} onClick={() => setSelectedItemId(item.id)}>
+        <tr 
+          draggable
+          onDragStart={(e) => handleDragStart(e, item.id)}
+          onDragOver={(e) => handleDragOver(e, item.id)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, item.id)}
+          onDragEnd={() => { setDraggedItemId(null); setDropTargetId(null); }}
+          className={`
+            border-b border-gray-100 hover:bg-blue-50/50 cursor-pointer transition-all group 
+            ${selectedItemId === item.id ? 'bg-blue-50' : ''}
+            ${isTarget ? 'border-t-4 border-t-blue-500 bg-blue-100/30' : ''}
+            ${isDragged ? 'opacity-20 grayscale' : ''}
+          `} 
+          onClick={() => setSelectedItemId(item.id)}
+        >
+          <td className="px-1 py-2 text-center" style={{ width: 24 }}>
+            <div className="cursor-grab active:cursor-grabbing p-1">
+               <GripVertical size={14} className="text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+          </td>
           <td className="px-2 py-2 text-[9px] text-gray-400 font-mono" style={{ width: colWidths.id }}>{item.id}</td>
           <td className="px-2 py-2" style={{ width: colWidths.title }}>
              <div className="flex items-center gap-1.5 overflow-hidden">
@@ -212,7 +362,7 @@ const BacklogView: React.FC = () => {
                <span className="text-[10px] font-bold text-slate-500 truncate">{item.kpi || '-'}</span>
              </div>
           </td>
-          <td className="px-2 py-2" style={{ width: colWidths.impact }}>
+          <td className="px-2 py-2" style={{ width: colWidths.kpiImpact }}>
              <div className="flex items-center gap-1 overflow-hidden">
                <Zap size={10} className="text-orange-500 shrink-0" />
                <span className="text-[10px] font-bold text-slate-500 truncate">{item.kpiImpact || '-'}</span>
@@ -249,7 +399,7 @@ const BacklogView: React.FC = () => {
         {label}
         {sortConfig?.key === sortKey && <div className="text-[8px]">{sortConfig.direction === 'desc' ? '▼' : '▲'}</div>}
       </div>
-      <div onMouseDown={(e) => onMouseDown(colKey, e)} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 z-20" />
+      <div onMouseDown={(e) => onMouseDownResize(colKey, e)} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 z-20" />
     </th>
   );
 
@@ -270,20 +420,31 @@ const BacklogView: React.FC = () => {
             <input type="text" placeholder="BUSCAR ITEM..." className="bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-[10px] font-black uppercase focus:border-blue-500 focus:bg-white outline-none w-48" value={filterText} onChange={(e) => setFilterText(e.target.value)} />
           </div>
         </div>
-        <button onClick={() => addWorkItem({ title: 'Nova Frente de Trabalho', type: ItemType.WORKSTREAM })} className="flex items-center gap-2 px-5 py-2.5 bg-orange-600 text-white rounded-xl text-[11px] font-black shadow-lg hover:bg-orange-700 transition-all active:scale-95"><Layers size={16} /> NOVA FT</button>
+        
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={handleShareWhatsApp}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black shadow-lg hover:bg-emerald-700 transition-all active:scale-95 uppercase tracking-tight"
+          >
+            <MessageCircle size={16} /> Enviar Mensal
+          </button>
+          
+          <button onClick={() => addWorkItem({ title: 'Nova Frente de Trabalho', type: ItemType.WORKSTREAM })} className="flex items-center gap-2 px-5 py-2.5 bg-orange-600 text-white rounded-xl text-[11px] font-black shadow-lg hover:bg-orange-700 transition-all active:scale-95 uppercase tracking-tighter"><Layers size={16} /> NOVA FT</button>
+        </div>
       </div>
       <div className="flex-1 overflow-auto custom-scrollbar">
         <table className="w-full text-left border-separate border-spacing-0" style={{ tableLayout: 'fixed', minWidth: 'max-content' }}>
           <thead className="bg-slate-50 text-[9px] font-black text-slate-400 select-none">
             <tr>
+              <th className="px-1 py-2 sticky top-0 z-10 border-b bg-slate-50" style={{ width: 24 }}></th>
               <SortHeader label="ID" sortKey="id" colKey="id" />
               <SortHeader label="Título" sortKey="title" colKey="title" />
-              <th className="px-2 py-2 sticky top-0 z-10 border-b bg-slate-50 uppercase relative" style={{ width: colWidths.actions }}>Ações <div onMouseDown={(e) => onMouseDown('actions', e)} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 z-20" /></th>
+              <th className="px-2 py-2 sticky top-0 z-10 border-b bg-slate-50 uppercase relative" style={{ width: colWidths.actions }}>Ações <div onMouseDown={(e) => onMouseDownResize('actions', e)} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 z-20" /></th>
               <SortHeader label="Prio" sortKey="priority" colKey="prio" />
               <SortHeader label="Responsável" sortKey="assigneeId" colKey="resp" />
               <SortHeader label="KPI" sortKey="kpi" colKey="kpi" />
               <SortHeader label="Impacto" sortKey="kpiImpact" colKey="impact" />
-              <th className="px-2 py-2 sticky top-0 z-10 border-b bg-slate-50 uppercase relative" style={{ width: colWidths.progress }}>Progresso <div onMouseDown={(e) => onMouseDown('progress', e)} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 z-20" /></th>
+              <th className="px-2 py-2 sticky top-0 z-10 border-b bg-slate-50 uppercase relative" style={{ width: colWidths.progress }}>Progresso <div onMouseDown={(e) => onMouseDownResize('progress', e)} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400 z-20" /></th>
               <SortHeader label="Sprint" sortKey="sprintId" colKey="sprint" />
               <SortHeader label="Status" sortKey="status" colKey="status" />
               <th className="px-2 py-2 sticky top-0 z-10 border-b bg-slate-50" style={{ width: colWidths.del }}></th>
