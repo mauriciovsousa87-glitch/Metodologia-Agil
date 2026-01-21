@@ -1,10 +1,10 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   X, Trash2, ListTodo, Calendar, AlertCircle, AlertTriangle, 
-  Upload, Download, Paperclip, ChevronRight, Lock, Unlock, AlignLeft, Loader2, ExternalLink, Tag, Target, Zap, DollarSign, ShoppingCart, FileText, CreditCard
+  Upload, Download, Paperclip, ChevronRight, Lock, Unlock, AlignLeft, Loader2, ExternalLink, Tag, Target, Zap, DollarSign, ShoppingCart, FileText, CreditCard, Layers, Box
 } from 'lucide-react';
-import { WorkItem, ItemPriority, ItemStatus, Attachment } from '../../types';
+import { WorkItem, ItemPriority, ItemStatus, Attachment, ItemType } from '../../types';
 import { useAgile } from '../../store';
 
 interface ItemPanelProps {
@@ -13,7 +13,7 @@ interface ItemPanelProps {
 }
 
 const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
-  const { updateWorkItem, deleteWorkItem, users, sprints, uploadAttachment } = useAgile();
+  const { updateWorkItem, deleteWorkItem, users, sprints, uploadAttachment, workItems } = useAgile();
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -34,6 +34,23 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
   const [localBillingStatus, setLocalBillingStatus] = useState((item as any).billingStatus || 'Em aberto');
   const [localCostValue, setLocalCostValue] = useState((item as any).costValue || 0);
 
+  // Lógica para encontrar a hierarquia (Ancestrais)
+  const ancestors = useMemo(() => {
+    const path: WorkItem[] = [];
+    let currentParentId = item.parentId;
+
+    while (currentParentId) {
+      const parent = workItems.find(i => i.id === currentParentId);
+      if (parent) {
+        path.unshift(parent);
+        currentParentId = parent.parentId;
+      } else {
+        currentParentId = undefined;
+      }
+    }
+    return path;
+  }, [item.parentId, workItems]);
+
   // Sincronizar estado local quando o item muda
   useEffect(() => {
     setLocalTitle(item.title);
@@ -51,11 +68,9 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
     setLocalCostValue((item as any).costValue || 0);
   }, [item.id]);
 
-  // Função para salvar imediatamente as alterações (usada em eventos críticos como blur ou change de data)
   const saveChanges = async (manualUpdates?: any) => {
     const updates: any = manualUpdates || {};
     
-    // Se não houver updates manuais, verifica os campos locais
     if (!manualUpdates) {
       if (localTitle !== item.title) updates.title = localTitle;
       if (localKpi !== (item.kpi || '')) updates.kpi = localKpi;
@@ -77,7 +92,6 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
     }
   };
 
-  // Auto-save com debounce para campos de texto longos (Descrição e Título)
   useEffect(() => {
     const timer = setTimeout(() => {
       if (localDescription !== (item.description || '') || localTitle !== item.title) {
@@ -92,7 +106,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
   };
 
   const handleClose = async () => {
-    await saveChanges(); // Garantir que salva tudo antes de fechar
+    await saveChanges();
     onClose();
   };
 
@@ -116,13 +130,27 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
     else { setIsConfirmingDelete(true); setTimeout(() => setIsConfirmingDelete(false), 4000); }
   };
 
+  const getIconForType = (type: ItemType) => {
+    switch (type) {
+      case ItemType.WORKSTREAM: return <Layers size={10} />;
+      case ItemType.INITIATIVE: return <Target size={10} />;
+      case ItemType.DELIVERY: return <Box size={10} />;
+      default: return <ListTodo size={10} />;
+    }
+  };
+
   return (
     <>
       <div className="fixed inset-y-0 right-0 w-full sm:w-[500px] lg:w-[620px] bg-white shadow-2xl z-[500] border-l border-gray-200 flex flex-col transform transition-transform animate-in slide-in-from-right duration-300">
         <div className="h-16 flex items-center justify-between px-4 lg:px-6 border-b border-gray-100 bg-slate-50 shrink-0">
           <div className="flex items-center gap-3">
             <span className="text-xs font-black text-slate-400 font-mono tracking-tighter">{item.id}</span>
-            <div className="px-2 py-1 rounded-md text-[9px] font-black uppercase bg-white border border-slate-200 text-slate-600">
+            <div className={`px-2 py-1 rounded-md text-[9px] font-black uppercase border shadow-sm ${
+              item.type === ItemType.WORKSTREAM ? 'bg-orange-500 text-white border-orange-600' :
+              item.type === ItemType.INITIATIVE ? 'bg-purple-500 text-white border-purple-600' :
+              item.type === ItemType.DELIVERY ? 'bg-blue-500 text-white border-blue-600' :
+              'bg-white border-slate-200 text-slate-600'
+            }`}>
               {item.type}
             </div>
           </div>
@@ -132,6 +160,31 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 lg:p-8 custom-scrollbar space-y-6 lg:space-y-8">
+          
+          {/* HIERARQUIA (BREADCRUMB) */}
+          {ancestors.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+              {ancestors.map((anc, idx) => (
+                <React.Fragment key={anc.id}>
+                  <div className="flex items-center gap-1.5 group cursor-default">
+                    <span className={`p-1 rounded bg-white border border-slate-200 shadow-sm ${
+                      anc.type === ItemType.WORKSTREAM ? 'text-orange-600' :
+                      anc.type === ItemType.INITIATIVE ? 'text-purple-600' :
+                      'text-blue-600'
+                    }`}>
+                      {getIconForType(anc.type)}
+                    </span>
+                    <div className="flex flex-col">
+                      <span className="text-[7px] font-black text-slate-400 uppercase leading-none mb-0.5">{anc.type}</span>
+                      <span className="text-[10px] font-bold text-slate-700 truncate max-w-[120px] uppercase tracking-tight">{anc.title}</span>
+                    </div>
+                  </div>
+                  <ChevronRight size={12} className="text-slate-300 last:hidden" />
+                </React.Fragment>
+              ))}
+            </div>
+          )}
+
           <section>
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Título</label>
             <textarea 
