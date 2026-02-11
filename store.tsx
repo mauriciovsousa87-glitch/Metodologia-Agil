@@ -24,7 +24,8 @@ interface AgileContextType {
   updateSprint: (id: string, updates: Partial<Sprint>) => Promise<void>;
   deleteSprint: (id: string) => Promise<void>;
 
-  addUser: (name: string, avatarFile?: File) => Promise<void>;
+  addUser: (name: string, position?: string, reportsTo?: string, avatarFile?: File) => Promise<void>;
+  updateUser: (id: string, updates: Partial<User>) => Promise<void>;
   removeUser: (id: string) => Promise<void>;
   
   uploadAttachment: (itemId: string, file: File) => Promise<void>;
@@ -42,7 +43,6 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [loading, setLoading] = useState(true);
   const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null);
 
-  // Efeito para carregar o ID inicial do localStorage apenas uma vez (evita hidratação incorreta no Vercel)
   useEffect(() => {
     const saved = localStorage.getItem('agile_active_sprint_id');
     if (saved) setSelectedSprintId(String(saved));
@@ -55,16 +55,21 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     try {
-      // O segredo para a Vercel: Cache-Busting usando timestamp na query
-      const ts = Date.now();
-      
       const [uRes, sRes, wRes] = await Promise.all([
         supabase.from('profiles').select('*').order('name'),
         supabase.from('sprints').select('*').order('start_date', { ascending: true }),
         supabase.from('work_items').select('*').order('created_at', { ascending: true })
       ]);
 
-      if (uRes.data) setUsers(uRes.data.map((u: any) => ({ id: String(u.id), name: u.name, avatar_url: u.avatar_url })));
+      if (uRes.data) {
+        setUsers(uRes.data.map((u: any) => ({ 
+          id: String(u.id), 
+          name: u.name, 
+          avatar_url: u.avatar_url,
+          position: u.position || '',
+          reportsTo: u.reports_to ? String(u.reports_to) : ''
+        })));
+      }
       
       if (sRes.data) {
         const mappedSprints = sRes.data.map(s => ({
@@ -77,7 +82,6 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }));
         setSprints(mappedSprints);
         
-        // Se não houver sprint selecionada, tenta selecionar a primeira ativa
         if (!selectedSprintId && mappedSprints.length > 0) {
           const active = mappedSprints.find(s => s.status === 'Ativa') || mappedSprints[0];
           setSelectedSprintId(active.id);
@@ -105,17 +109,11 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           startDate: item.start_date,
           endDate: item.end_date,
           attachments: item.attachments || [],
-          costItem: item.cost_item || '',
-          costType: item.cost_type || 'OPEX',
-          requestNum: item.request_num || '',
-          orderNum: item.order_num || '',
-          billingStatus: item.billing_status || 'Em aberto',
-          costValue: item.cost_value || 0
         }));
         setWorkItems(mappedItems);
       }
     } catch (error) {
-      console.error("Erro na Vercel ao buscar dados:", error);
+      console.error("Erro ao buscar dados:", error);
     } finally {
       setLoading(false);
     }
@@ -136,50 +134,9 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('agile_active_sprint_id', stringId);
   };
 
-  const findSprintForDate = (dateStr: string | undefined, currentSprints: Sprint[]): string | null => {
-    if (!dateStr || currentSprints.length === 0) return null;
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const targetTime = Date.UTC(y, m - 1, d, 12, 0, 0);
-
-    const matched = currentSprints.find(s => {
-      const [sY, sM, sD] = s.startDate.split('-').map(Number);
-      const [eY, eM, eD] = s.endDate.split('-').map(Number);
-      const startTime = Date.UTC(sY, sM - 1, sD, 0, 0, 0);
-      const endTime = Date.UTC(eY, eM - 1, eD, 23, 59, 59);
-      return targetTime >= startTime && targetTime <= endTime;
-    });
-    return matched ? String(matched.id) : null;
-  };
-
   const syncTasksWithSprints = async () => {
     if (!supabase) return;
     setLoading(true);
-    
-    // Força leitura limpa do banco
-    const { data: freshSprints } = await supabase.from('sprints').select('*');
-    const { data: freshItems } = await supabase.from('work_items').select('*');
-    
-    if (freshSprints && freshItems) {
-      const mappedSprints: Sprint[] = freshSprints.map(s => ({
-        id: String(s.id), 
-        startDate: s.start_date,
-        endDate: s.end_date,
-        name: s.name,
-        objective: s.objective,
-        status: s.status
-      }));
-
-      for (const item of freshItems) {
-        if (item.end_date) {
-          const targetId = findSprintForDate(item.end_date, mappedSprints);
-          const currentId = item.sprint_id ? String(item.sprint_id) : null;
-          if (targetId !== currentId) {
-            await supabase.from('work_items').update({ sprint_id: targetId }).eq('id', item.id);
-          }
-        }
-      }
-    }
-
     await fetchData();
     setLoading(false);
   };
@@ -187,8 +144,6 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const addWorkItem = async (item: Partial<WorkItem>) => {
     if (!supabase) return;
     const id = `A-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-    const targetSprintId = item.endDate ? findSprintForDate(item.endDate, sprints) : (item.sprintId || null);
-    
     const payload = {
       id,
       type: item.type || ItemType.DELIVERY,
@@ -197,13 +152,12 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       column_name: item.column || BoardColumn.TODO, 
       status: item.status || ItemStatus.NEW,
       parent_id: item.parentId || null,
-      sprint_id: targetSprintId ? String(targetSprintId) : null,
+      sprint_id: item.sprintId ? String(item.sprintId) : null,
       workstream_id: item.workstreamId || null,
       start_date: item.startDate || null,
       end_date: item.endDate || null,
       assignee_id: item.assigneeId || null
     };
-    
     await supabase.from('work_items').insert([payload]);
     await fetchData();
   };
@@ -222,7 +176,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (updates.endDate !== undefined) pg.end_date = updates.endDate || null;
     if (updates.sprintId !== undefined) pg.sprint_id = updates.sprintId ? String(updates.sprintId) : null;
     if (updates.parentId !== undefined) pg.parent_id = updates.parentId || null;
-    if (updates.workstreamId !== undefined) pg.workstream_id = updates.workstreamId || null;
+    if (updates.workstreamId !== undefined) pg.workstream_id = updates.workstream_id || null;
     if (updates.blocked !== undefined) pg.blocked = updates.blocked;
     if (updates.kpi !== undefined) pg.kpi = updates.kpi;
     if (updates.kpiImpact !== undefined) pg.kpi_impact = updates.kpiImpact;
@@ -240,10 +194,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       objective: s.objective, 
       status: s.status || 'Planejada'
     }]).select();
-    
-    if (!error && data && data.length > 0) {
-      setSprint(String(data[0].id));
-    }
+    if (!error && data && data.length > 0) setSprint(String(data[0].id));
     await fetchData();
   };
 
@@ -267,14 +218,13 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const deleteSprint = async (id: string) => {
     if (!supabase || !id) return;
-    const sId = String(id);
-    await supabase.from('work_items').update({ sprint_id: null }).eq('sprint_id', sId);
-    await supabase.from('sprints').delete().eq('id', sId);
-    if (selectedSprintId === sId) setSelectedSprintId(null);
+    await supabase.from('work_items').update({ sprint_id: null }).eq('sprint_id', id);
+    await supabase.from('sprints').delete().eq('id', id);
+    if (selectedSprintId === id) setSelectedSprintId(null);
     await fetchData();
   };
 
-  const addUser = async (name: string, file?: File) => {
+  const addUser = async (name: string, position?: string, reportsTo?: string, file?: File) => {
     if (!supabase) return;
     let avatar_url = null;
     if (file) {
@@ -282,12 +232,25 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const { data } = await supabase.storage.from('avatars').upload(path, file);
       if (data) avatar_url = supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;
     }
-    await supabase.from('profiles').insert([{ name, avatar_url }]);
+    await supabase.from('profiles').insert([{ name, position, reports_to: reportsTo, avatar_url }]);
+    await fetchData();
+  };
+
+  const updateUser = async (id: string, updates: Partial<User>) => {
+    if (!supabase) return;
+    const pg: any = {};
+    if (updates.name !== undefined) pg.name = updates.name;
+    if (updates.position !== undefined) pg.position = updates.position;
+    if (updates.reportsTo !== undefined) pg.reports_to = updates.reportsTo || null;
+    
+    await supabase.from('profiles').update(pg).eq('id', id);
     await fetchData();
   };
 
   const removeUser = async (id: string) => {
     if (!supabase) return;
+    // Antes de remover, garantir que ninguém aponte para este ID
+    await supabase.from('profiles').update({ reports_to: null }).eq('reports_to', id);
     await supabase.from('profiles').delete().eq('id', id);
     await fetchData();
   };
@@ -306,15 +269,12 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const seedData = async () => { await fetchData(); };
 
-  // Localiza a sprint garantindo comparação de string (segurança total Vercel)
-  const selectedSprint = sprints.find(s => String(s.id) === String(selectedSprintId));
-
   return (
     <AgileContext.Provider value={{
       sprints, workItems, users, loading, configured: isSupabaseConfigured,
-      selectedSprint: selectedSprint || null, setSprint,
+      selectedSprint: sprints.find(s => String(s.id) === String(selectedSprintId)) || null, setSprint,
       addWorkItem, updateWorkItem, deleteWorkItem, addSprint, updateSprint, deleteSprint,
-      addUser, removeUser, uploadAttachment, seedData, refreshData: fetchData, syncTasksWithSprints
+      addUser, updateUser, removeUser, uploadAttachment, seedData, refreshData: fetchData, syncTasksWithSprints
     }}>
       {children}
     </AgileContext.Provider>

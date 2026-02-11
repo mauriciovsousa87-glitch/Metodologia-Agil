@@ -8,16 +8,24 @@ import DashboardView from './components/Dashboard/DashboardView';
 import GanttView from './components/Gantt/GanttView';
 import FinanceView from './components/Finance/FinanceView';
 import TimelineView from './components/Timeline/TimelineView';
-import { ViewType } from './types';
-import { Settings as SettingsIcon, Camera, X, Shield } from 'lucide-react';
+import StrategyView from './components/Strategy/StrategyView';
+import { ViewType, User } from './types';
+import { Settings as SettingsIcon, Camera, X, Shield, Target, UserPlus, Save } from 'lucide-react';
 
 const SettingsView: React.FC = () => {
-  const { users, addUser, removeUser } = useAgile();
+  const { users, addUser, removeUser, updateUser } = useAgile();
   const [newName, setNewName] = useState('');
+  const [newPosition, setNewPosition] = useState('');
+  const [newReportsTo, setNewReportsTo] = useState('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPosition, setEditPosition] = useState('');
+  const [editReportsTo, setEditReportsTo] = useState('');
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -33,57 +41,112 @@ const SettingsView: React.FC = () => {
     e.preventDefault();
     if (newName.trim()) {
       setIsSaving(true);
-      await addUser(newName, avatarFile || undefined);
-      setNewName(''); setAvatarFile(null); setAvatarPreview(null);
+      await addUser(newName, newPosition || undefined, newReportsTo || undefined, avatarFile || undefined);
+      setNewName(''); setNewPosition(''); setNewReportsTo(''); setAvatarFile(null); setAvatarPreview(null);
+      setIsSaving(false);
+    }
+  };
+
+  const startEditing = (user: User) => {
+    setEditingUserId(user.id);
+    setEditName(user.name);
+    setEditPosition(user.position || '');
+    setEditReportsTo(user.reportsTo || '');
+  };
+
+  const handleUpdate = async () => {
+    if (editingUserId) {
+      setIsSaving(true);
+      await updateUser(editingUserId, { 
+        name: editName, 
+        position: editPosition, 
+        reportsTo: editReportsTo 
+      });
+      setEditingUserId(null);
       setIsSaving(false);
     }
   };
 
   return (
-    <div className="p-10 max-w-4xl mx-auto space-y-10">
+    <div className="p-10 max-w-5xl mx-auto space-y-10">
       <header className="flex items-center gap-4">
         <div className="p-4 bg-slate-900 text-white rounded-2xl shadow-xl"><SettingsIcon size={32} /></div>
         <div>
           <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter leading-none">Configurações</h2>
-          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Gestão do Time</p>
+          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Gestão do Time e Hierarquia</p>
         </div>
       </header>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <section className="bg-white rounded-3xl border-2 border-slate-100 shadow-xl overflow-hidden p-8">
-          <form onSubmit={handleAdd} className="space-y-4 mb-8">
-            <div className="flex items-center gap-4">
-              <div onClick={() => fileInputRef.current?.click()} className="w-16 h-16 rounded-2xl bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center cursor-pointer overflow-hidden group">
-                {avatarPreview ? <img src={avatarPreview} className="w-full h-full object-cover" /> : <Camera size={24} className="text-slate-400 group-hover:scale-110 transition-transform" />}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <section className="lg:col-span-1 bg-white rounded-3xl border-2 border-slate-100 shadow-xl p-8 sticky top-10 h-fit">
+          <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-6 flex items-center gap-2">
+            <UserPlus size={18} className="text-blue-600" /> Novo Membro
+          </h3>
+          <form onSubmit={handleAdd} className="space-y-4">
+            <div className="flex flex-col items-center gap-4 mb-4">
+              <div onClick={() => fileInputRef.current?.click()} className="w-24 h-24 rounded-3xl bg-slate-50 border-2 border-dashed border-slate-200 flex items-center justify-center cursor-pointer overflow-hidden group">
+                {avatarPreview ? <img src={avatarPreview} className="w-full h-full object-cover" /> : <Camera size={28} className="text-slate-300 group-hover:scale-110 transition-transform" />}
               </div>
               <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
-              <div className="flex-1 space-y-2">
-                <input type="text" placeholder="Nome do integrante..." className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-2 text-sm font-bold outline-none focus:border-blue-500" value={newName} onChange={(e) => setNewName(e.target.value)} />
-                <button disabled={isSaving} type="submit" className="w-full py-2 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-blue-700 active:scale-95 transition-all">
-                  {isSaving ? 'Salvando...' : 'Cadastrar Membro'}
-                </button>
-              </div>
+              <p className="text-[10px] font-black text-slate-400 uppercase">Avatar (opcional)</p>
+            </div>
+
+            <div className="space-y-3">
+              <input type="text" placeholder="Nome completo" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-blue-500" value={newName} onChange={(e) => setNewName(e.target.value)} required />
+              <input type="text" placeholder="Cargo (Ex: CEO, Gerente...)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:border-blue-500" value={newPosition} onChange={(e) => setNewPosition(e.target.value)} />
+              
+              <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold outline-none cursor-pointer" value={newReportsTo} onChange={(e) => setNewReportsTo(e.target.value)}>
+                <option value="">Reporta para: (Ninguém)</option>
+                {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+
+              <button disabled={isSaving} type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg hover:bg-blue-700 active:scale-95 transition-all mt-4">
+                {isSaving ? 'Cadastrando...' : 'Adicionar ao Time'}
+              </button>
             </div>
           </form>
-          <div className="space-y-2">
+        </section>
+
+        <section className="lg:col-span-2 space-y-4">
+          <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest mb-4">Integrantes Ativos ({users.length})</h3>
+          <div className="grid grid-cols-1 gap-3">
             {users.map(u => (
-              <div key={u.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
-                <div className="flex items-center gap-3">
+              <div key={u.id} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm hover:shadow-md transition-all flex items-center justify-between group">
+                <div className="flex items-center gap-4 flex-1">
                   {u.avatar_url ? (
-                    <img src={u.avatar_url} className="w-8 h-8 rounded-full object-cover" />
+                    <img src={u.avatar_url} className="w-12 h-12 rounded-2xl object-cover shadow-sm" />
                   ) : (
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-black text-blue-700">{u.name[0]}</div>
+                    <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center text-lg font-black text-blue-700 shadow-inner">{u.name[0]}</div>
                   )}
-                  <span className="text-sm font-black text-slate-700">{u.name}</span>
+                  
+                  {editingUserId === u.id ? (
+                    <div className="flex-1 grid grid-cols-1 gap-2">
+                      <input type="text" className="bg-slate-50 border border-blue-200 rounded-lg px-3 py-1 text-xs font-bold" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                      <input type="text" className="bg-slate-50 border border-blue-200 rounded-lg px-3 py-1 text-xs font-bold" value={editPosition} onChange={(e) => setEditPosition(e.target.value)} placeholder="Cargo" />
+                      <select className="bg-slate-50 border border-blue-200 rounded-lg px-3 py-1 text-xs font-bold" value={editReportsTo} onChange={(e) => setEditReportsTo(e.target.value)}>
+                        <option value="">Sem superior</option>
+                        {users.filter(other => other.id !== u.id).map(other => <option key={other.id} value={other.id}>{other.name}</option>)}
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-black text-slate-800 uppercase tracking-tight">{u.name}</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">{u.position || 'Sem cargo'}</p>
+                    </div>
+                  )}
                 </div>
-                <button onClick={() => removeUser(u.id)} className="text-slate-300 hover:text-red-500 transition-colors p-2"><X size={16} /></button>
+
+                <div className="flex items-center gap-1 ml-4">
+                  {editingUserId === u.id ? (
+                    <button onClick={handleUpdate} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><Save size={18} /></button>
+                  ) : (
+                    <button onClick={() => startEditing(u)} className="p-2 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"><SettingsIcon size={18} /></button>
+                  )}
+                  <button onClick={() => removeUser(u.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors rounded-lg"><X size={18} /></button>
+                </div>
               </div>
             ))}
           </div>
-        </section>
-        <section className="bg-slate-900 rounded-[40px] p-10 text-white flex flex-col justify-center items-center text-center space-y-4 shadow-2xl">
-           <Shield size={48} className="text-emerald-500" />
-           <h3 className="text-xl font-black uppercase tracking-tighter">Sincronização Ativa</h3>
-           <p className="text-xs text-slate-400 font-bold uppercase leading-relaxed">Dados salvos em tempo real na Supabase.</p>
         </section>
       </div>
     </div>
@@ -99,6 +162,7 @@ const App: React.FC = () => {
       case 'Sprints': return <SprintView />;
       case 'Dashboard': return <DashboardView />;
       case 'Gantt': return <GanttView />;
+      case 'Strategy': return <StrategyView />;
       case 'Finance': return <FinanceView />;
       case 'Timeline': return <TimelineView />;
       case 'Settings': return <SettingsView />;

@@ -32,6 +32,8 @@ export interface User {
   name: string;
   avatar?: string;
   avatar_url?: string;
+  position?: string;
+  reportsTo?: string;
 }
 
 export interface Project {
@@ -100,4 +102,4 @@ export interface WorkItem {
   attachments?: Attachment[];
 }
 
-export type ViewType = 'Backlog' | 'Sprints' | 'Dashboard' | 'Gantt' | 'Finance' | 'Timeline' | 'Settings';
+export type ViewType = 'Backlog' | 'Sprints' | 'Dashboard' | 'Gantt' | 'Strategy' | 'Finance' | 'Timeline' | 'Settings';

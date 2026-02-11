@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { 
   LayoutGrid, ListTodo, BarChart3, GanttChartSquare, Settings, 
   Menu, X, Plus, Bell, AlertCircle, Calendar, DollarSign, GitCommitHorizontal,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Target
 } from 'lucide-react';
 import { ViewType } from '../types';
 import { useAgile } from '../store';
@@ -33,6 +33,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
     { id: 'Finance' as ViewType, label: 'Gestão de Custos', icon: DollarSign },
     { id: 'Dashboard' as ViewType, label: 'Dashboard', icon: BarChart3 },
     { id: 'Gantt' as ViewType, label: 'Gantt', icon: GanttChartSquare },
+    { id: 'Strategy' as ViewType, label: 'Estratégia', icon: Target },
     { id: 'Settings' as ViewType, label: 'Configurações', icon: Settings },
   ];
 
