@@ -9,6 +9,7 @@ import GanttView from './components/Gantt/GanttView';
 import FinanceView from './components/Finance/FinanceView';
 import TimelineView from './components/Timeline/TimelineView';
 import StrategyView from './components/Strategy/StrategyView';
+import MeetingsView from './components/Meetings/MeetingsView';
 import { ViewType, User } from './types';
 import { Settings as SettingsIcon, Camera, X, Shield, Target, UserPlus, Save } from 'lucide-react';
 
@@ -165,6 +166,7 @@ const App: React.FC = () => {
       case 'Strategy': return <StrategyView />;
       case 'Finance': return <FinanceView />;
       case 'Timeline': return <TimelineView />;
+      case 'Meetings': return <MeetingsView />;
       case 'Settings': return <SettingsView />;
       default: return <SprintView />;
     }

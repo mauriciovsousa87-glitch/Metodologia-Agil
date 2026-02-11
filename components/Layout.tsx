@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { 
   LayoutGrid, ListTodo, BarChart3, GanttChartSquare, Settings, 
   Menu, X, Plus, Bell, AlertCircle, Calendar, DollarSign, GitCommitHorizontal,
-  ChevronLeft, ChevronRight, Target
+  ChevronLeft, ChevronRight, Target, FileText
 } from 'lucide-react';
 import { ViewType } from '../types';
 import { useAgile } from '../store';
@@ -29,6 +29,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
   const navItems = [
     { id: 'Sprints' as ViewType, label: 'Sprints', icon: LayoutGrid },
     { id: 'Backlog' as ViewType, label: 'Backlog', icon: ListTodo },
+    { id: 'Meetings' as ViewType, label: 'Atas de Reunião', icon: FileText },
     { id: 'Timeline' as ViewType, label: 'Linha do Tempo', icon: GitCommitHorizontal },
     { id: 'Finance' as ViewType, label: 'Gestão de Custos', icon: DollarSign },
     { id: 'Dashboard' as ViewType, label: 'Dashboard', icon: BarChart3 },
@@ -79,7 +80,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
           </div>
         </div>
 
-        {/* Botão Flutuante de Toggle (Estilo Moderno) */}
+        {/* Botão Flutuante de Toggle */}
         <button 
           onClick={() => setSidebarExpanded(!sidebarExpanded)}
           className="absolute -right-3 top-20 bg-blue-600 text-white p-1 rounded-full shadow-xl border-2 border-white hover:bg-blue-700 transition-all z-[110]"

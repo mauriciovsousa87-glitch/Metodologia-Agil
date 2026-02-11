@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { 
-  WorkItem, Sprint, User, 
+  WorkItem, Sprint, User, Meeting,
   ItemType, ItemPriority, ItemStatus, BoardColumn 
 } from './types';
 import { supabase, isSupabaseConfigured } from './supabase';
@@ -10,6 +10,7 @@ interface AgileContextType {
   sprints: Sprint[];
   workItems: WorkItem[];
   users: User[];
+  meetings: Meeting[];
   loading: boolean;
   configured: boolean;
   
@@ -27,6 +28,10 @@ interface AgileContextType {
   addUser: (name: string, position?: string, reportsTo?: string, avatarFile?: File) => Promise<void>;
   updateUser: (id: string, updates: Partial<User>) => Promise<void>;
   removeUser: (id: string) => Promise<void>;
+
+  addMeeting: (meeting: Partial<Meeting>) => Promise<string | null>;
+  updateMeeting: (id: string, updates: Partial<Meeting>) => Promise<void>;
+  deleteMeeting: (id: string) => Promise<void>;
   
   uploadAttachment: (itemId: string, file: File) => Promise<void>;
   seedData: () => Promise<void>;
@@ -40,13 +45,9 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [users, setUsers] = useState<User[]>([]);
   const [sprints, setSprints] = useState<Sprint[]>([]);
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('agile_active_sprint_id');
-    if (saved) setSelectedSprintId(String(saved));
-  }, []);
 
   const fetchData = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) {
@@ -55,14 +56,16 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     try {
-      const [uRes, sRes, wRes] = await Promise.all([
+      const results = await Promise.allSettled([
         supabase.from('profiles').select('*').order('name'),
         supabase.from('sprints').select('*').order('start_date', { ascending: true }),
-        supabase.from('work_items').select('*').order('created_at', { ascending: true })
+        supabase.from('work_items').select('*').order('created_at', { ascending: true }),
+        supabase.from('meetings').select('*').order('date', { ascending: false })
       ]);
 
-      if (uRes.data) {
-        setUsers(uRes.data.map((u: any) => ({ 
+      // Perfis
+      if (results[0].status === 'fulfilled' && results[0].value.data) {
+        setUsers(results[0].value.data.map((u: any) => ({ 
           id: String(u.id), 
           name: u.name, 
           avatar_url: u.avatar_url,
@@ -70,9 +73,10 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           reportsTo: u.reports_to ? String(u.reports_to) : ''
         })));
       }
-      
-      if (sRes.data) {
-        const mappedSprints = sRes.data.map(s => ({
+
+      // Sprints
+      if (results[1].status === 'fulfilled' && results[1].value.data) {
+        const mappedSprints = results[1].value.data.map(s => ({
           id: String(s.id), 
           name: s.name,
           startDate: s.start_date,
@@ -81,15 +85,15 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           status: s.status
         }));
         setSprints(mappedSprints);
-        
         if (!selectedSprintId && mappedSprints.length > 0) {
           const active = mappedSprints.find(s => s.status === 'Ativa') || mappedSprints[0];
           setSelectedSprintId(active.id);
         }
       }
 
-      if (wRes.data) {
-        const mappedItems = wRes.data.map(item => ({
+      // Work Items
+      if (results[2].status === 'fulfilled' && results[2].value.data) {
+        setWorkItems(results[2].value.data.map(item => ({
           id: String(item.id),
           type: item.type as ItemType,
           title: item.title,
@@ -109,9 +113,34 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           startDate: item.start_date,
           endDate: item.end_date,
           attachments: item.attachments || [],
-        }));
-        setWorkItems(mappedItems);
+        })));
       }
+
+      // Meetings (Com mapeamento de campos)
+      if (results[3].status === 'fulfilled' && results[3].value.data) {
+        setMeetings(results[3].value.data.map((m: any) => ({
+          id: m.id,
+          title: m.title,
+          date: m.date,
+          startTime: m.start_time,
+          endTime: m.end_time,
+          type: m.type,
+          location: m.location,
+          facilitatorId: m.facilitator_id,
+          secretaryId: m.secretary_id,
+          participants: m.participants || [],
+          agenda: m.agenda || [],
+          decisions: m.decisions || [],
+          actions: m.actions || [],
+          nextMeetingDate: m.next_meeting_date,
+          nextMeetingObjective: m.next_meeting_objective,
+          aiSummary: m.ai_summary,
+          createdAt: m.created_at
+        })));
+      } else if (results[3].status === 'rejected') {
+        console.warn("Tabela 'meetings' não encontrada ou inacessível.");
+      }
+
     } catch (error) {
       console.error("Erro ao buscar dados:", error);
     } finally {
@@ -129,22 +158,14 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [fetchData]);
 
   const setSprint = (id: string) => {
-    const stringId = String(id);
-    setSelectedSprintId(stringId);
-    localStorage.setItem('agile_active_sprint_id', stringId);
-  };
-
-  const syncTasksWithSprints = async () => {
-    if (!supabase) return;
-    setLoading(true);
-    await fetchData();
-    setLoading(false);
+    setSelectedSprintId(String(id));
+    localStorage.setItem('agile_active_sprint_id', String(id));
   };
 
   const addWorkItem = async (item: Partial<WorkItem>) => {
     if (!supabase) return;
     const id = `A-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-    const payload = {
+    await supabase.from('work_items').insert([{
       id,
       type: item.type || ItemType.DELIVERY,
       title: item.title || 'Novo Item',
@@ -156,9 +177,9 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       workstream_id: item.workstreamId || null,
       start_date: item.startDate || null,
       end_date: item.endDate || null,
+      // Fix: changed item.assignee_id to item.assigneeId to match the WorkItem interface
       assignee_id: item.assigneeId || null
-    };
-    await supabase.from('work_items').insert([payload]);
+    }]);
     await fetchData();
   };
 
@@ -187,14 +208,14 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const addSprint = async (s: Partial<Sprint>) => {
     if (!supabase) return;
-    const { data, error } = await supabase.from('sprints').insert([{
+    const { data } = await supabase.from('sprints').insert([{
       name: s.name, 
       start_date: s.startDate, 
       end_date: s.endDate, 
       objective: s.objective, 
       status: s.status || 'Planejada'
     }]).select();
-    if (!error && data && data.length > 0) setSprint(String(data[0].id));
+    if (data && data.length > 0) setSprint(String(data[0].id));
     await fetchData();
   };
 
@@ -238,20 +259,79 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateUser = async (id: string, updates: Partial<User>) => {
     if (!supabase) return;
-    const pg: any = {};
-    if (updates.name !== undefined) pg.name = updates.name;
-    if (updates.position !== undefined) pg.position = updates.position;
-    if (updates.reportsTo !== undefined) pg.reports_to = updates.reportsTo || null;
-    
-    await supabase.from('profiles').update(pg).eq('id', id);
+    await supabase.from('profiles').update({
+      name: updates.name,
+      position: updates.position,
+      reports_to: updates.reportsTo || null
+    }).eq('id', id);
     await fetchData();
   };
 
   const removeUser = async (id: string) => {
     if (!supabase) return;
-    // Antes de remover, garantir que ninguém aponte para este ID
     await supabase.from('profiles').update({ reports_to: null }).eq('reports_to', id);
     await supabase.from('profiles').delete().eq('id', id);
+    await fetchData();
+  };
+
+  const addMeeting = async (meeting: Partial<Meeting>): Promise<string | null> => {
+    if (!supabase) return null;
+    
+    // Mapeamento para o banco de dados (snake_case)
+    const payload = {
+      title: meeting.title,
+      date: meeting.date,
+      start_time: meeting.startTime,
+      end_time: meeting.endTime,
+      type: meeting.type,
+      location: meeting.location,
+      facilitator_id: meeting.facilitatorId,
+      secretary_id: meeting.secretaryId,
+      participants: meeting.participants || [],
+      agenda: meeting.agenda || [],
+      decisions: meeting.decisions || [],
+      actions: meeting.actions || [],
+      next_meeting_date: meeting.nextMeetingDate,
+      next_meeting_objective: meeting.nextMeetingObjective,
+      ai_summary: meeting.aiSummary
+    };
+
+    const { data, error } = await supabase.from('meetings').insert([payload]).select();
+    if (error) { 
+      console.error("Erro ao inserir reunião:", error); 
+      return null; 
+    }
+    await fetchData();
+    return data && data.length > 0 ? String(data[0].id) : null;
+  };
+
+  const updateMeeting = async (id: string, updates: Partial<Meeting>) => {
+    if (!supabase) return;
+    
+    const pg: any = {};
+    if (updates.title !== undefined) pg.title = updates.title;
+    if (updates.date !== undefined) pg.date = updates.date;
+    if (updates.startTime !== undefined) pg.start_time = updates.startTime;
+    if (updates.endTime !== undefined) pg.end_time = updates.endTime;
+    if (updates.type !== undefined) pg.type = updates.type;
+    if (updates.location !== undefined) pg.location = updates.location;
+    if (updates.facilitatorId !== undefined) pg.facilitator_id = updates.facilitatorId;
+    if (updates.secretaryId !== undefined) pg.secretary_id = updates.secretaryId;
+    if (updates.participants !== undefined) pg.participants = updates.participants;
+    if (updates.agenda !== undefined) pg.agenda = updates.agenda;
+    if (updates.decisions !== undefined) pg.decisions = updates.decisions;
+    if (updates.actions !== undefined) pg.actions = updates.actions;
+    if (updates.nextMeetingDate !== undefined) pg.next_meeting_date = updates.nextMeetingDate;
+    if (updates.nextMeetingObjective !== undefined) pg.next_meeting_objective = updates.nextMeetingObjective;
+    if (updates.aiSummary !== undefined) pg.ai_summary = updates.aiSummary;
+
+    await supabase.from('meetings').update(pg).eq('id', id);
+    await fetchData();
+  };
+
+  const deleteMeeting = async (id: string) => {
+    if (!supabase) return;
+    await supabase.from('meetings').delete().eq('id', id);
     await fetchData();
   };
 
@@ -267,14 +347,16 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const syncTasksWithSprints = async () => { await fetchData(); };
   const seedData = async () => { await fetchData(); };
 
   return (
     <AgileContext.Provider value={{
-      sprints, workItems, users, loading, configured: isSupabaseConfigured,
+      sprints, workItems, users, meetings, loading, configured: isSupabaseConfigured,
       selectedSprint: sprints.find(s => String(s.id) === String(selectedSprintId)) || null, setSprint,
       addWorkItem, updateWorkItem, deleteWorkItem, addSprint, updateSprint, deleteSprint,
-      addUser, updateUser, removeUser, uploadAttachment, seedData, refreshData: fetchData, syncTasksWithSprints
+      addUser, updateUser, removeUser, addMeeting, updateMeeting, deleteMeeting,
+      uploadAttachment, seedData, refreshData: fetchData, syncTasksWithSprints
     }}>
       {children}
     </AgileContext.Provider>

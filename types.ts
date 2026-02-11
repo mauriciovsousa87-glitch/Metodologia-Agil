@@ -43,13 +43,6 @@ export interface Project {
   status: 'Ativo' | 'Arquivado';
 }
 
-export interface Team {
-  id: string;
-  name: string;
-  members: User[];
-  capacityPerDay: number;
-}
-
 export interface Sprint {
   id: string;
   name: string;
@@ -57,16 +50,6 @@ export interface Sprint {
   endDate: string;
   objective: string;
   status: 'Planejada' | 'Ativa' | 'Encerrada';
-}
-
-export interface Workstream {
-  id: string;
-  name: string;
-  description: string;
-  startDate: string;
-  endDate: string;
-  color: string;
-  dependencies: string[];
 }
 
 export interface Attachment {
@@ -102,4 +85,59 @@ export interface WorkItem {
   attachments?: Attachment[];
 }
 
-export type ViewType = 'Backlog' | 'Sprints' | 'Dashboard' | 'Gantt' | 'Strategy' | 'Finance' | 'Timeline' | 'Settings';
+// Interfaces para Ata de Reunião
+export interface MeetingParticipant {
+  userId: string;
+  role: string;
+  present: boolean;
+}
+
+export interface MeetingAgendaItem {
+  id: string;
+  topic: string;
+  priority: 'Alta' | 'Média' | 'Baixa';
+  discussion: string;
+  problemIdentified?: string;
+  rootCause?: string;
+}
+
+export interface MeetingDecision {
+  id: string;
+  text: string;
+  impact: string;
+  status: 'Planejado' | 'Em andamento' | 'Concluído';
+}
+
+export interface Action5W2H {
+  id: string;
+  what: string;
+  why: string;
+  who: string;
+  when: string;
+  where: string;
+  how: string;
+  cost: number;
+  completed: boolean;
+}
+
+export interface Meeting {
+  id: string;
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  type: 'Daily' | 'Weekly' | 'Kaizen' | 'Estratégica' | 'Outro';
+  location: string;
+  facilitatorId: string;
+  secretaryId: string;
+  participants: MeetingParticipant[];
+  agenda: MeetingAgendaItem[];
+  decisions: MeetingDecision[];
+  actions: Action5W2H[];
+  nextMeetingDate?: string;
+  nextMeetingObjective?: string;
+  aiSummary?: string;
+  createdAt: string;
+}
+
+export type ViewType = 'Backlog' | 'Sprints' | 'Dashboard' | 'Gantt' | 'Strategy' | 'Finance' | 'Timeline' | 'Meetings' | 'Settings';
