@@ -180,11 +180,43 @@ const App: React.FC = () => {
 };
 
 const AppWrapper: React.FC<{ renderContent: () => React.ReactNode, activeView: ViewType, onViewChange: (v: ViewType) => void }> = ({ renderContent, activeView, onViewChange }) => {
-  const { configured, users, loading } = useAgile();
+  const { configured, users, loading, error } = useAgile();
   
-  const isEmpty = users.length === 0 && !loading;
+  if (loading) {
+    return <div className="h-screen w-full flex items-center justify-center bg-slate-50 font-black uppercase text-slate-400 tracking-widest animate-pulse">Carregando dados...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-red-50 p-10 text-center">
+        <div className="bg-white p-8 rounded-[2rem] shadow-2xl border-2 border-red-100 max-w-md">
+          <h2 className="text-2xl font-black text-red-600 uppercase tracking-tighter mb-4">Erro de Conexão</h2>
+          <p className="text-sm font-bold text-slate-600 mb-6">{error}</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Verifique suas chaves do Supabase nas configurações do ambiente.</p>
+        </div>
+      </div>
+    );
+  }
+  
+  const isEmpty = users.length === 0;
   if ((!configured || isEmpty) && activeView !== 'Settings') {
-    return <div className="h-screen w-full flex items-center justify-center bg-slate-50 font-black uppercase text-slate-400 tracking-widest">Inicie em Settings para configurar o time...</div>;
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 p-10 text-center">
+        <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-slate-100 max-w-lg">
+          <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center text-blue-600 mb-8 mx-auto">
+            <UserPlus size={40} />
+          </div>
+          <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter mb-4 leading-none">Time não configurado</h2>
+          <p className="text-slate-500 font-medium mb-8">Parece que não há integrantes cadastrados ou a conexão com o banco de dados retornou vazia.</p>
+          <button 
+            onClick={() => onViewChange('Settings')}
+            className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg hover:bg-blue-700 transition-all active:scale-95"
+          >
+            Ir para Configurações
+          </button>
+        </div>
+      </div>
+    );
   }
   
   return <Layout activeView={activeView} onViewChange={onViewChange}>{renderContent()}</Layout>;

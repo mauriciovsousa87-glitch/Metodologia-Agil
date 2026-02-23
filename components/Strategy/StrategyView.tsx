@@ -254,9 +254,9 @@ const StrategyView: React.FC = () => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-slate-300 text-slate-800 flex items-center justify-center font-black uppercase text-[10px] tracking-widest p-4 rounded-lg">Métricas de Sucesso</div>
-            <div className="bg-black text-white p-6 rounded-lg border-b-4 border-yellow-400 shadow-lg"><span className="text-[10px] font-black text-yellow-400 uppercase block mb-1">BEP</span><span className="text-xl font-black tracking-tighter">> 450 PTS</span></div>
+            <div className="bg-black text-white p-6 rounded-lg border-b-4 border-yellow-400 shadow-lg"><span className="text-[10px] font-black text-yellow-400 uppercase block mb-1">BEP</span><span className="text-xl font-black tracking-tighter">{" > "} 450 PTS</span></div>
             <div className="bg-black text-white p-6 rounded-lg border-b-4 border-yellow-400 shadow-lg"><span className="text-[10px] font-black text-yellow-400 uppercase block mb-1">Leadership Ranking</span><span className="text-xl font-black tracking-tighter">TOP 3</span></div>
-            <div className="bg-black text-white p-6 rounded-lg border-b-4 border-yellow-400 shadow-lg"><span className="text-[10px] font-black text-yellow-400 uppercase block mb-1">Volume</span><span className="text-xl font-black tracking-tighter">> 1 MIO HL</span></div>
+            <div className="bg-black text-white p-6 rounded-lg border-b-4 border-yellow-400 shadow-lg"><span className="text-[10px] font-black text-yellow-400 uppercase block mb-1">Volume</span><span className="text-xl font-black tracking-tighter">{" > "} 1 MIO HL</span></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-6 gap-2 mb-8 items-stretch">
             <div className="bg-slate-300 text-slate-800 flex items-center justify-center font-black uppercase text-[10px] tracking-widest p-4 rounded-lg">KPIs Foco</div>

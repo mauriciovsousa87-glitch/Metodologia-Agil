@@ -12,6 +12,7 @@ interface AgileContextType {
   users: User[];
   meetings: Meeting[];
   loading: boolean;
+  error: string | null;
   configured: boolean;
   
   selectedSprint: Sprint | null;
@@ -47,6 +48,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -56,6 +58,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     try {
+      setError(null);
       const results = await Promise.allSettled([
         supabase.from('profiles').select('*').order('name'),
         supabase.from('sprints').select('*').order('start_date', { ascending: true }),
@@ -141,8 +144,9 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         console.warn("Tabela 'meetings' não encontrada ou inacessível.");
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao buscar dados:", error);
+      setError(error.message || "Erro desconhecido ao conectar com Supabase");
     } finally {
       setLoading(false);
     }
@@ -352,7 +356,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <AgileContext.Provider value={{
-      sprints, workItems, users, meetings, loading, configured: isSupabaseConfigured,
+      sprints, workItems, users, meetings, loading, error, configured: isSupabaseConfigured,
       selectedSprint: sprints.find(s => String(s.id) === String(selectedSprintId)) || null, setSprint,
       addWorkItem, updateWorkItem, deleteWorkItem, addSprint, updateSprint, deleteSprint,
       addUser, updateUser, removeUser, addMeeting, updateMeeting, deleteMeeting,
