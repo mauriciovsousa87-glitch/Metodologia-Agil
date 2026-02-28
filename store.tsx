@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { 
-  WorkItem, Sprint, User, Meeting,
+  WorkItem, Sprint, User, Meeting, Strategy,
   ItemType, ItemPriority, ItemStatus, BoardColumn 
 } from './types';
 import { supabase, isSupabaseConfigured } from './supabase';
@@ -11,6 +11,7 @@ interface AgileContextType {
   workItems: WorkItem[];
   users: User[];
   meetings: Meeting[];
+  strategy: Strategy | null;
   loading: boolean;
   error: string | null;
   configured: boolean;
@@ -33,6 +34,8 @@ interface AgileContextType {
   addMeeting: (meeting: Partial<Meeting>) => Promise<string | null>;
   updateMeeting: (id: string, updates: Partial<Meeting>) => Promise<void>;
   deleteMeeting: (id: string) => Promise<void>;
+
+  updateStrategy: (updates: Partial<Strategy>) => Promise<void>;
   
   uploadAttachment: (itemId: string, file: File) => Promise<void>;
   seedData: () => Promise<void>;
@@ -47,6 +50,7 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [sprints, setSprints] = useState<Sprint[]>([]);
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [strategy, setStrategy] = useState<Strategy | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null);
@@ -63,7 +67,8 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         supabase.from('profiles').select('*').order('name'),
         supabase.from('sprints').select('*').order('start_date', { ascending: true }),
         supabase.from('work_items').select('*').order('created_at', { ascending: true }),
-        supabase.from('meetings').select('*').order('date', { ascending: false })
+        supabase.from('meetings').select('*').order('date', { ascending: false }),
+        supabase.from('strategy').select('*').limit(1).single()
       ]);
 
       // Perfis
@@ -142,6 +147,47 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         })));
       } else if (results[3].status === 'rejected') {
         console.warn("Tabela 'meetings' não encontrada ou inacessível.");
+      }
+
+      // Strategy
+      if (results[4].status === 'fulfilled' && results[4].value.data) {
+        const s = results[4].value.data;
+        setStrategy({
+          id: String(s.id),
+          year: s.year,
+          vision: s.vision,
+          successMetrics: s.success_metrics || [],
+          focusKPIs: s.focus_kpis || [],
+          engineeringVision: s.engineering_vision,
+          engineeringKPIs: s.engineering_kpis || []
+        });
+      } else {
+        // Mock default strategy if not found
+        setStrategy({
+          id: 'default',
+          year: '2026',
+          vision: 'SER A MELHOR CERVEJARIA DA CIA',
+          successMetrics: [
+            { label: 'BEP', value: '> 450 PTS' },
+            { label: 'Leadership Ranking', value: 'TOP 3' },
+            { label: 'Volume', value: '> 1 MIO HL' }
+          ],
+          focusKPIs: [
+            { label: 'TRI + cTRI', value: '0' },
+            { label: 'BQI', value: '> 92' },
+            { label: 'TPE', value: '< 60' },
+            { label: 'ÁGUA', value: '< 2,30' },
+            { label: 'OSE', value: '> 70' }
+          ],
+          engineeringVision: 'SER A MELHOR ENGENHARIA E ITF DA CIA',
+          engineeringKPIs: [
+            { label: 'TPE', value: '< 60', icon: 'Zap' },
+            { label: 'SURPLUS', value: '> 0,80', icon: 'TrendingUp' },
+            { label: 'INDISP', value: '< 0,15', icon: 'Gauge' },
+            { label: 'OBZ + VIC', value: '= 0', icon: 'Trophy' },
+            { label: 'ÁGUA', value: '< 2,30', icon: 'Droplets' }
+          ]
+        });
       }
 
     } catch (error: any) {
@@ -333,6 +379,26 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     await fetchData();
   };
 
+  const updateStrategy = async (updates: Partial<Strategy>) => {
+    if (!supabase || !strategy) return;
+    
+    const pg: any = {};
+    if (updates.year !== undefined) pg.year = updates.year;
+    if (updates.vision !== undefined) pg.vision = updates.vision;
+    if (updates.successMetrics !== undefined) pg.success_metrics = updates.successMetrics;
+    if (updates.focusKPIs !== undefined) pg.focus_kpis = updates.focusKPIs;
+    if (updates.engineeringVision !== undefined) pg.engineering_vision = updates.engineeringVision;
+    if (updates.engineeringKPIs !== undefined) pg.engineering_kpis = updates.engineeringKPIs;
+
+    // Try to update, if it fails because it's the mock 'default', we can't save unless we insert
+    if (strategy.id === 'default') {
+      await supabase.from('strategy').insert([pg]);
+    } else {
+      await supabase.from('strategy').update(pg).eq('id', strategy.id);
+    }
+    await fetchData();
+  };
+
   const deleteMeeting = async (id: string) => {
     if (!supabase) return;
     await supabase.from('meetings').delete().eq('id', id);
@@ -356,10 +422,11 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <AgileContext.Provider value={{
-      sprints, workItems, users, meetings, loading, error, configured: isSupabaseConfigured,
+      sprints, workItems, users, meetings, strategy, loading, error, configured: isSupabaseConfigured,
       selectedSprint: sprints.find(s => String(s.id) === String(selectedSprintId)) || null, setSprint,
       addWorkItem, updateWorkItem, deleteWorkItem, addSprint, updateSprint, deleteSprint,
       addUser, updateUser, removeUser, addMeeting, updateMeeting, deleteMeeting,
+      updateStrategy,
       uploadAttachment, seedData, refreshData: fetchData, syncTasksWithSprints
     }}>
       {children}

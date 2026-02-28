@@ -140,4 +140,21 @@ export interface Meeting {
   createdAt: string;
 }
 
+export interface StrategyMetric {
+  label: string;
+  value: string;
+  target?: string;
+  icon?: string;
+}
+
+export interface Strategy {
+  id: string;
+  year: string;
+  vision: string;
+  successMetrics: StrategyMetric[];
+  focusKPIs: StrategyMetric[];
+  engineeringVision: string;
+  engineeringKPIs: StrategyMetric[];
+}
+
 export type ViewType = 'Backlog' | 'Sprints' | 'Dashboard' | 'Gantt' | 'Strategy' | 'Finance' | 'Timeline' | 'Meetings' | 'Settings';

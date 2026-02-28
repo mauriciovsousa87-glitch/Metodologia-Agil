@@ -8,7 +8,7 @@ import {
   AlertTriangle, Settings, ChevronsRight, Boxes, Monitor, Database, Flag, Loader2
 } from 'lucide-react';
 import { useAgile } from '../../store';
-import { User } from '../../types';
+import { User, Strategy } from '../../types';
 
 interface OrgCardProps {
   user: User;
@@ -188,16 +188,41 @@ const SectionHeader: React.FC<{ title: string; number: string }> = ({ title, num
 );
 
 const StrategyView: React.FC = () => {
-  const { users, updateUser, removeUser } = useAgile();
+  const { users, updateUser, removeUser, strategy, updateStrategy } = useAgile();
   const [showAssignModal, setShowAssignModal] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isEditingStrategy, setIsEditingStrategy] = useState(false);
+  const [editData, setEditData] = useState<Partial<Strategy>>({});
 
   // Determinar líderes raiz (quem não reporta a ninguém ou cujo líder não existe mais)
   const roots = useMemo(() => {
     return users.filter(u => !u.reportsTo || !users.some(parent => String(parent.id) === String(u.reportsTo)));
   }, [users]);
 
-  // Possíveis subordinados (não pode ser o próprio pai e não pode criar ciclo)
+  const handleEditStrategy = () => {
+    if (strategy) {
+      setEditData({ ...strategy });
+      setIsEditingStrategy(true);
+    }
+  };
+
+  const handleSaveStrategy = async () => {
+    setIsUpdating(true);
+    try {
+      await updateStrategy(editData);
+      setIsEditingStrategy(false);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const getIcon = (iconName: string) => {
+    const icons: Record<string, any> = {
+      Zap, TrendingUp, Gauge, Trophy, Droplets, Target, Users, Shield, Cpu, Beer, Heart
+    };
+    return icons[iconName] || Target;
+  };
+
   const getCandidates = (parentId: string) => {
     return users.filter(u => String(u.id) !== String(parentId));
   };
@@ -236,37 +261,54 @@ const StrategyView: React.FC = () => {
     }
   };
 
+  if (!strategy) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin text-blue-600" size={48} /></div>;
+
   return (
     <div className="min-h-full bg-white font-sans text-slate-900 pb-60 overflow-x-hidden">
       <div className="max-w-7xl mx-auto px-6 py-8">
         
-        {/* PARTE 1, 2 e 3 MANTIDAS INTEGRALMENTE */}
+        <div className="flex justify-end mb-4">
+          <button 
+            onClick={handleEditStrategy}
+            className="flex items-center gap-2 bg-slate-900 text-white px-6 py-2 rounded-full text-xs font-black uppercase hover:bg-slate-800 transition-all shadow-lg"
+          >
+            <SettingsIcon size={14} /> Editar Estratégia
+          </button>
+        </div>
+
+        {/* PARTE 1: Estratégia da Cervejaria */}
         <div className="text-center mb-32">
           <SectionHeader title="Estratégia da Cervejaria" number="1" />
-          <h2 className="text-6xl font-black tracking-tighter text-slate-900 mb-2">2026</h2>
+          <h2 className="text-6xl font-black tracking-tighter text-slate-900 mb-2">{strategy.year}</h2>
           <div className="flex items-center justify-center gap-4 mb-8">
             <div className="w-16 h-1 bg-yellow-400 rounded-full" />
             <h1 className="text-4xl lg:text-5xl font-black uppercase tracking-tighter flex items-center gap-4 text-center">
               <span className="text-yellow-400 text-6xl italic">7L</span>
-              SER A MELHOR CERVEJARIA <span className="text-slate-400 font-bold">DA CIA</span>
+              {strategy.vision}
             </h1>
             <div className="w-16 h-1 bg-yellow-400 rounded-full" />
           </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-slate-300 text-slate-800 flex items-center justify-center font-black uppercase text-[10px] tracking-widest p-4 rounded-lg">Métricas de Sucesso</div>
-            <div className="bg-black text-white p-6 rounded-lg border-b-4 border-yellow-400 shadow-lg"><span className="text-[10px] font-black text-yellow-400 uppercase block mb-1">BEP</span><span className="text-xl font-black tracking-tighter">{" > "} 450 PTS</span></div>
-            <div className="bg-black text-white p-6 rounded-lg border-b-4 border-yellow-400 shadow-lg"><span className="text-[10px] font-black text-yellow-400 uppercase block mb-1">Leadership Ranking</span><span className="text-xl font-black tracking-tighter">TOP 3</span></div>
-            <div className="bg-black text-white p-6 rounded-lg border-b-4 border-yellow-400 shadow-lg"><span className="text-[10px] font-black text-yellow-400 uppercase block mb-1">Volume</span><span className="text-xl font-black tracking-tighter">{" > "} 1 MIO HL</span></div>
+            {strategy.successMetrics.map((metric, i) => (
+              <div key={i} className="bg-black text-white p-6 rounded-lg border-b-4 border-yellow-400 shadow-lg">
+                <span className="text-[10px] font-black text-yellow-400 uppercase block mb-1">{metric.label}</span>
+                <span className="text-xl font-black tracking-tighter">{metric.value}</span>
+              </div>
+            ))}
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-6 gap-2 mb-8 items-stretch">
             <div className="bg-slate-300 text-slate-800 flex items-center justify-center font-black uppercase text-[10px] tracking-widest p-4 rounded-lg">KPIs Foco</div>
             <div className="md:col-span-5 flex flex-wrap justify-center gap-4">
-              {[
-                { label: 'TRI + cTRI', value: '0' }, { label: 'BQI', value: '> 92' }, { label: 'TPE', value: '< 60' }, { label: 'ÁGUA', value: '< 2,30' }, { label: 'OSE', value: '> 70' },
-              ].map((kpi, i) => (
+              {strategy.focusKPIs.map((kpi, i) => (
                 <div key={i} className="relative w-28 h-24 flex flex-col items-center justify-center text-center">
                   <div className="absolute inset-0 bg-yellow-400 clip-hexagon-balanced shadow-sm" />
-                  <div className="relative z-10 px-1 font-black"><p className="text-lg tracking-tighter">{kpi.value}</p><p className="text-[9px] uppercase leading-tight">{kpi.label}</p></div>
+                  <div className="relative z-10 px-1 font-black">
+                    <p className="text-lg tracking-tighter">{kpi.value}</p>
+                    <p className="text-[9px] uppercase leading-tight">{kpi.label}</p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -276,6 +318,7 @@ const StrategyView: React.FC = () => {
           </div>
         </div>
 
+        {/* PARTE 2: Estratégia da Engenharia & ITF */}
         <div className="text-center mb-32">
           <SectionHeader title="Estratégia da Engenharia & ITF" number="2" />
           <div className="relative bg-[#020617] rounded-[3rem] p-10 lg:p-14 overflow-hidden border-4 border-yellow-400 shadow-2xl">
@@ -283,19 +326,198 @@ const StrategyView: React.FC = () => {
             <div className="relative z-10 flex flex-col items-center">
               <div className="flex items-center justify-center gap-6 mb-12">
                  <span className="text-yellow-400 text-6xl font-black italic">7L</span>
-                 <h2 className="text-4xl lg:text-5xl font-black text-white uppercase tracking-tighter leading-none text-center">SER A MELHOR <span className="text-yellow-400">ENGENHARIA E ITF DA CIA</span></h2>
+                 <h2 className="text-4xl lg:text-5xl font-black text-white uppercase tracking-tighter leading-none text-center">
+                   {strategy.engineeringVision.split('ENGENHARIA').map((part, i) => (
+                     <React.Fragment key={i}>
+                       {i > 0 && <span className="text-yellow-400">ENGENHARIA</span>}
+                       {part}
+                     </React.Fragment>
+                   ))}
+                 </h2>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4 w-full">
-                {[{ label: 'TPE', target: '< 60', icon: Zap }, { label: 'SURPLUS', target: '> 0,80', icon: TrendingUp }, { label: 'INDISP', target: '< 0,15', icon: Gauge }, { label: 'OBZ + VIC', target: '= 0', icon: Trophy }, { label: 'ÁGUA', target: '< 2,30', icon: Droplets }].map((kpi, i) => (
-                  <div key={i} className="bg-white/10 border border-white/20 p-6 rounded-3xl flex flex-col items-center hover:bg-white/20 transition-all">
-                    <div className="w-12 h-12 rounded-2xl bg-yellow-400/20 flex items-center justify-center mb-4"><kpi.icon className="text-yellow-400" size={24} /></div>
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{kpi.label}</span><span className="text-xl font-black text-white mt-1">{kpi.target}</span>
-                  </div>
-                ))}
+                {strategy.engineeringKPIs.map((kpi, i) => {
+                  const Icon = getIcon(kpi.icon || '');
+                  return (
+                    <div key={i} className="bg-white/10 border border-white/20 p-6 rounded-3xl flex flex-col items-center hover:bg-white/20 transition-all">
+                      <div className="w-12 h-12 rounded-2xl bg-yellow-400/20 flex items-center justify-center mb-4"><Icon className="text-yellow-400" size={24} /></div>
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{kpi.label}</span>
+                      <span className="text-xl font-black text-white mt-1">{kpi.value}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
         </div>
+
+        {/* MODAL EDIÇÃO ESTRATÉGIA */}
+        {isEditingStrategy && (
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[9999] flex items-center justify-center p-6 animate-in fade-in duration-300">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden max-h-[90vh] flex flex-col">
+              <div className="p-8 border-b flex items-center justify-between bg-slate-50/50">
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Configurações</h3>
+                  <p className="text-xl font-black text-slate-800 uppercase tracking-tighter">Editar Estratégia</p>
+                </div>
+                <button onClick={() => setIsEditingStrategy(false)} className="p-3 hover:bg-slate-200 rounded-2xl text-slate-400"><X size={24}/></button>
+              </div>
+              
+              <div className="p-8 overflow-y-auto custom-scrollbar flex-1 space-y-8">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400">Ano</label>
+                    <input 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:ring-2 ring-blue-500"
+                      value={editData.year}
+                      onChange={e => setEditData({ ...editData, year: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400">Visão Geral</label>
+                    <input 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:ring-2 ring-blue-500"
+                      value={editData.vision}
+                      onChange={e => setEditData({ ...editData, vision: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase text-slate-900 border-b pb-2">Métricas de Sucesso</h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    {editData.successMetrics?.map((m, i) => (
+                      <div key={i} className="space-y-2 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <input 
+                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-[10px] font-black uppercase outline-none"
+                          value={m.label}
+                          placeholder="LABEL"
+                          onChange={e => {
+                            const newMetrics = [...(editData.successMetrics || [])];
+                            newMetrics[i].label = e.target.value;
+                            setEditData({ ...editData, successMetrics: newMetrics });
+                          }}
+                        />
+                        <input 
+                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none"
+                          value={m.value}
+                          placeholder="VALOR"
+                          onChange={e => {
+                            const newMetrics = [...(editData.successMetrics || [])];
+                            newMetrics[i].value = e.target.value;
+                            setEditData({ ...editData, successMetrics: newMetrics });
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase text-slate-900 border-b pb-2">KPIs Foco</h4>
+                  <div className="grid grid-cols-5 gap-4">
+                    {editData.focusKPIs?.map((k, i) => (
+                      <div key={i} className="space-y-2 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <input 
+                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-[10px] font-black uppercase outline-none"
+                          value={k.label}
+                          placeholder="KPI"
+                          onChange={e => {
+                            const newKpis = [...(editData.focusKPIs || [])];
+                            newKpis[i].label = e.target.value;
+                            setEditData({ ...editData, focusKPIs: newKpis });
+                          }}
+                        />
+                        <input 
+                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none"
+                          value={k.value}
+                          placeholder="VALOR"
+                          onChange={e => {
+                            const newKpis = [...(editData.focusKPIs || [])];
+                            newKpis[i].value = e.target.value;
+                            setEditData({ ...editData, focusKPIs: newKpis });
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase text-slate-900 border-b pb-2">Estratégia Engenharia</h4>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400">Visão Engenharia</label>
+                    <input 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:ring-2 ring-blue-500"
+                      value={editData.engineeringVision}
+                      onChange={e => setEditData({ ...editData, engineeringVision: e.target.value })}
+                    />
+                  </div>
+                  <div className="grid grid-cols-5 gap-4">
+                    {editData.engineeringKPIs?.map((k, i) => (
+                      <div key={i} className="space-y-2 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <input 
+                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-[10px] font-black uppercase outline-none"
+                          value={k.label}
+                          placeholder="KPI"
+                          onChange={e => {
+                            const newKpis = [...(editData.engineeringKPIs || [])];
+                            newKpis[i].label = e.target.value;
+                            setEditData({ ...editData, engineeringKPIs: newKpis });
+                          }}
+                        />
+                        <input 
+                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none"
+                          value={k.value}
+                          placeholder="VALOR"
+                          onChange={e => {
+                            const newKpis = [...(editData.engineeringKPIs || [])];
+                            newKpis[i].value = e.target.value;
+                            setEditData({ ...editData, engineeringKPIs: newKpis });
+                          }}
+                        />
+                        <select 
+                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-[10px] font-bold outline-none"
+                          value={k.icon}
+                          onChange={e => {
+                            const newKpis = [...(editData.engineeringKPIs || [])];
+                            newKpis[i].icon = e.target.value;
+                            setEditData({ ...editData, engineeringKPIs: newKpis });
+                          }}
+                        >
+                          <option value="Zap">Zap</option>
+                          <option value="TrendingUp">TrendingUp</option>
+                          <option value="Gauge">Gauge</option>
+                          <option value="Trophy">Trophy</option>
+                          <option value="Droplets">Droplets</option>
+                          <option value="Heart">Heart</option>
+                          <option value="Target">Target</option>
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-8 border-t bg-slate-50/50 flex gap-4">
+                <button 
+                  onClick={handleSaveStrategy}
+                  disabled={isUpdating}
+                  className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl flex items-center justify-center gap-3 disabled:opacity-50"
+                >
+                  {isUpdating ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+                  Salvar Alterações
+                </button>
+                <button 
+                  onClick={() => setIsEditingStrategy(false)}
+                  className="px-8 bg-slate-200 text-slate-600 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-300 transition-all"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="text-center mb-32">
           <SectionHeader title="Plataformas Direcionais" number="3" />

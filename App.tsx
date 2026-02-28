@@ -154,6 +154,7 @@ const SettingsView: React.FC = () => {
   );
 };
 
+// Triggering new build to fix Vercel sync issue - commit d551b9c was skipped by Vercel
 const App: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewType>('Sprints');
 
