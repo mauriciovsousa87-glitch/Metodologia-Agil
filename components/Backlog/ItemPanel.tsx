@@ -33,6 +33,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
   const [localOrderNum, setLocalOrderNum] = useState((item as any).orderNum || '');
   const [localBillingStatus, setLocalBillingStatus] = useState((item as any).billingStatus || 'Em aberto');
   const [localCostValue, setLocalCostValue] = useState((item as any).costValue || 0);
+  const [localBilledValue, setLocalBilledValue] = useState((item as any).billedValue || 0);
 
   // Lógica para encontrar a hierarquia (Ancestrais)
   const ancestors = useMemo(() => {
@@ -66,6 +67,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
     setLocalOrderNum((item as any).orderNum || '');
     setLocalBillingStatus((item as any).billingStatus || 'Em aberto');
     setLocalCostValue((item as any).costValue || 0);
+    setLocalBilledValue((item as any).billedValue || 0);
   }, [item.id]);
 
   const saveChanges = async (manualUpdates?: any) => {
@@ -85,6 +87,7 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
       if (localOrderNum !== ((item as any).orderNum || '')) updates.orderNum = localOrderNum;
       if (localBillingStatus !== ((item as any).billingStatus || 'Em aberto')) updates.billingStatus = localBillingStatus;
       if (Number(localCostValue) !== Number((item as any).costValue || 0)) updates.costValue = Number(localCostValue);
+      if (Number(localBilledValue) !== Number((item as any).billedValue || 0)) updates.billedValue = Number(localBilledValue);
     }
 
     if (Object.keys(updates).length > 0) {
@@ -239,37 +242,44 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
             </h3>
             <div className="space-y-4 p-4 lg:p-6 bg-emerald-50/30 rounded-3xl border border-emerald-100">
                <input type="text" className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white shadow-sm" value={localCostItem} onChange={(e) => setLocalCostItem(e.target.value)} onBlur={() => saveChanges()} placeholder="Item / Serviço" />
-               <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Valor Planejado</label>
                     <input type="number" className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white" value={localCostValue} onChange={(e) => setLocalCostValue(e.target.value)} onBlur={() => saveChanges()} placeholder="R$ 0.00" />
                   </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Faturado até o momento</label>
+                    <input type="number" className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white" value={localBilledValue} onChange={(e) => setLocalBilledValue(e.target.value)} onBlur={() => saveChanges()} placeholder="R$ 0.00" />
+                  </div>
+               </div>
+               <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Tipo de Verba</label>
                     <select className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white cursor-pointer" value={localCostType} onChange={(e) => { setLocalCostType(e.target.value); saveChanges({ costType: e.target.value }); }}>
                       <option value="OPEX">OPEX</option>
                       <option value="CAPEX">CAPEX</option>
                       <option value="SEVIM">SEVIM</option>
+                      <option value="VIC Estratégico">VIC Estratégico</option>
                       <option value="OUTROS">OUTROS</option>
                     </select>
                   </div>
-               </div>
-               <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1">
-                    <label className="text-[8px] font-black text-slate-400 uppercase">Requisição</label>
-                    <input type="text" className="w-full text-xs font-bold border border-slate-100 rounded-lg p-2 bg-white" value={localRequestNum} onChange={(e) => setLocalRequestNum(e.target.value)} onBlur={() => saveChanges()} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-black text-slate-400 uppercase">Pedido</label>
-                    <input type="text" className="w-full text-xs font-bold border border-slate-100 rounded-lg p-2 bg-white" value={localOrderNum} onChange={(e) => setLocalOrderNum(e.target.value)} onBlur={() => saveChanges()} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-black text-slate-400 uppercase">Faturamento</label>
-                    <select className="w-full text-xs font-bold border border-slate-100 rounded-lg p-2 bg-white cursor-pointer" value={localBillingStatus} onChange={(e) => { setLocalBillingStatus(e.target.value); saveChanges({ billingStatus: e.target.value }); }}>
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Faturamento</label>
+                    <select className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white cursor-pointer" value={localBillingStatus} onChange={(e) => { setLocalBillingStatus(e.target.value); saveChanges({ billingStatus: e.target.value }); }}>
                       <option value="Em aberto">Em aberto</option>
                       <option value="Pedido Emitido">Pedido Emitido</option>
                       <option value="Faturado">Faturado</option>
                     </select>
+                  </div>
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Requisição</label>
+                    <input type="text" className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white" value={localRequestNum} onChange={(e) => setLocalRequestNum(e.target.value)} onBlur={() => saveChanges()} placeholder="Nº Requisição" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pedido</label>
+                    <input type="text" className="w-full text-sm font-bold border-2 border-slate-100 rounded-xl p-2.5 bg-white" value={localOrderNum} onChange={(e) => setLocalOrderNum(e.target.value)} onBlur={() => saveChanges()} placeholder="Nº Pedido" />
                   </div>
                </div>
             </div>

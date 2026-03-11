@@ -83,6 +83,13 @@ export interface WorkItem {
   blocked?: boolean;
   blockReason?: string;
   attachments?: Attachment[];
+  costItem?: string;
+  costType?: string;
+  requestNum?: string;
+  orderNum?: string;
+  billingStatus?: string;
+  costValue?: number;
+  billedValue?: number;
 }
 
 // Interfaces para Ata de Reunião

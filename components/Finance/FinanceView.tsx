@@ -11,6 +11,7 @@ const COST_THEMES = {
   'CAPEX': { bar: 'bg-cyan-500', text: 'text-cyan-600', bg: 'bg-cyan-50', border: 'border-cyan-100' },
   'OPEX': { bar: 'bg-emerald-500', text: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
   'SEVIM': { bar: 'bg-amber-400', text: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
+  'VIC Estratégico': { bar: 'bg-indigo-500', text: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-100' },
   'OUTROS': { bar: 'bg-rose-500', text: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100' }
 };
 
@@ -156,7 +157,7 @@ const FinanceView: React.FC = () => {
                         {item.title}
                       </div>
                       <div 
-                        className={`w-full h-2 rounded-full mb-1 ${COST_THEMES[((item as any).costType as keyof typeof COST_THEMES) || 'OUTROS'].bar} shadow-sm ring-1 ring-white hover:scale-y-150 transition-transform`} 
+                        className={`w-full h-2 rounded-full mb-1 ${(COST_THEMES[((item as any).costType as keyof typeof COST_THEMES)] || COST_THEMES['OUTROS']).bar} shadow-sm ring-1 ring-white hover:scale-y-150 transition-transform`} 
                         title={`${item.title}: ${formatCurrency(Number((item as any).costValue) || 0)}`}
                       />
                     </div>

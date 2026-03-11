@@ -121,6 +121,13 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           startDate: item.start_date,
           endDate: item.end_date,
           attachments: item.attachments || [],
+          costItem: item.cost_item || '',
+          costType: item.cost_type || 'OPEX',
+          requestNum: item.request_num || '',
+          orderNum: item.order_num || '',
+          billingStatus: item.billing_status || 'Em aberto',
+          costValue: item.cost_value || 0,
+          billedValue: item.billed_value || 0,
         })));
       }
 
@@ -251,6 +258,13 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (updates.blocked !== undefined) pg.blocked = updates.blocked;
     if (updates.kpi !== undefined) pg.kpi = updates.kpi;
     if (updates.kpiImpact !== undefined) pg.kpi_impact = updates.kpiImpact;
+    if (updates.costItem !== undefined) pg.cost_item = updates.costItem;
+    if (updates.costType !== undefined) pg.cost_type = updates.costType;
+    if (updates.requestNum !== undefined) pg.request_num = updates.requestNum;
+    if (updates.orderNum !== undefined) pg.order_num = updates.orderNum;
+    if (updates.billingStatus !== undefined) pg.billing_status = updates.billingStatus;
+    if (updates.costValue !== undefined) pg.cost_value = updates.costValue;
+    if (updates.billedValue !== undefined) pg.billed_value = updates.billedValue;
 
     await supabase.from('work_items').update(pg).eq('id', id);
     await fetchData(); 

@@ -2,10 +2,8 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useAgile } from '../../store';
 import { WorkItem, ItemType, ItemStatus } from '../../types';
-import { Calendar, Info, Target, Package, ListTodo, CheckCircle2, TrendingUp, Search, X, ChevronDown, MessageCircle, Download, Loader2, Camera, Flag } from 'lucide-react';
+import { Calendar, Info, Target, Package, ListTodo, CheckCircle2, TrendingUp, Search, X, ChevronDown, Loader2, Flag } from 'lucide-react';
 import ItemPanel from '../Backlog/ItemPanel';
-
-declare var html2canvas: any;
 
 const TimelineView: React.FC = () => {
   const { workItems, users } = useAgile();
@@ -15,7 +13,6 @@ const TimelineView: React.FC = () => {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
 
@@ -90,38 +87,6 @@ const TimelineView: React.FC = () => {
     return { timelineItems: sorted, progress: calculatedProgress };
   }, [workItems, selectedInitiativeId, selectedInitiative]);
 
-  const handleExportAsImage = async () => {
-    if (!timelineRef.current || !selectedInitiative) return;
-    
-    setIsExporting(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      const canvas = await html2canvas(timelineRef.current, {
-        backgroundColor: '#f8fafc',
-        scale: 2,
-        logging: false,
-        useCORS: true
-      });
-
-      const image = canvas.toDataURL("image/png");
-      const link = document.createElement('a');
-      link.href = image;
-      link.download = `TIMELINE_${selectedInitiative.id}_${selectedInitiative.title.replace(/\s/g, '_')}.png`;
-      link.click();
-      
-      const message = encodeURIComponent(`Olá! Segue o status atualizado da Iniciativa: ${selectedInitiative.title}\n📊 Progresso: ${progress}%`);
-      window.open(`https://wa.me/?text=${message}`, '_blank');
-
-      alert("Imagem gerada com sucesso!");
-    } catch (err) {
-      console.error("Falha ao exportar imagem:", err);
-      alert("Erro ao gerar a imagem.");
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   const formatDateLabel = (dateStr: string) => {
     const date = new Date(dateStr + 'T12:00:00Z');
     return {
@@ -139,27 +104,17 @@ const TimelineView: React.FC = () => {
               <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">Status da Iniciativa</h1>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Visão cronológica e meta final</p>
             </div>
-            {selectedInitiativeId && (
-              <button 
-                onClick={handleExportAsImage}
-                disabled={isExporting}
-                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black shadow-lg hover:bg-emerald-700 transition-all active:scale-95 uppercase tracking-tight ml-4 disabled:opacity-50"
-              >
-                {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
-                {isExporting ? 'Processando...' : 'Print para WhatsApp'}
-              </button>
-            )}
           </div>
 
-          <div className="flex flex-1 max-w-2xl items-center gap-6">
-            <div className="flex-1">
+          <div className="flex flex-1 items-center gap-6">
+            <div className="w-48">
               <div className="flex justify-between items-end mb-2">
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                  <TrendingUp size={12} className="text-emerald-500" /> Saúde do Projeto
+                  <TrendingUp size={12} className="text-emerald-500" /> Saúde
                 </span>
-                <span className="text-lg font-black text-slate-900 tracking-tighter">{progress}%</span>
+                <span className="text-xs font-black text-slate-900 tracking-tighter">{progress}%</span>
               </div>
-              <div className="h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200 p-0.5">
+              <div className="h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200 p-0.5">
                 <div 
                   className="h-full bg-gradient-to-r from-blue-600 to-indigo-500 rounded-full transition-all duration-1000 ease-out shadow-inner"
                   style={{ width: `${progress}%` }}
@@ -170,7 +125,7 @@ const TimelineView: React.FC = () => {
             <div className="h-10 w-px bg-slate-200 hidden lg:block" />
 
             {/* BUSCA DE INICIATIVA */}
-            <div className="relative w-full lg:w-72" ref={searchRef}>
+            <div className="relative w-full lg:w-64" ref={searchRef}>
               <div 
                 onClick={() => setIsSearchOpen(!isSearchOpen)}
                 className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 shadow-sm cursor-pointer hover:bg-slate-100 transition-all"
@@ -217,6 +172,46 @@ const TimelineView: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {selectedInitiative && (
+              <>
+                <div className="h-10 w-px bg-slate-200 hidden lg:block" />
+                
+                <div className="flex items-center gap-4">
+                  {/* CARD IMPACTO */}
+                  <div className="bg-white border border-slate-200 rounded-2xl px-4 py-2 shadow-sm flex flex-col min-w-[140px]">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Impacto Esperado</span>
+                    <span className="text-xs font-black text-blue-600 uppercase truncate">
+                      {selectedInitiative.kpiImpact || 'Não definido'}
+                    </span>
+                  </div>
+
+                  {/* CARD VALOR PLANEJADO */}
+                  <div className="bg-white border border-slate-200 rounded-2xl px-4 py-2 shadow-sm flex flex-col min-w-[140px]">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Valor Planejado</span>
+                    <span className="text-xs font-black text-emerald-600 uppercase">
+                      {selectedInitiative.costValue ? `R$ ${selectedInitiative.costValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ 0,00'}
+                    </span>
+                  </div>
+
+                  {/* CARD FATURADO */}
+                  <div className="bg-white border border-slate-200 rounded-2xl px-4 py-2 shadow-sm flex flex-col min-w-[140px]">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Faturado</span>
+                    <span className="text-xs font-black text-orange-600 uppercase">
+                      {selectedInitiative.billedValue ? `R$ ${selectedInitiative.billedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ 0,00'}
+                    </span>
+                  </div>
+
+                  {/* CARD TIPO VERBA */}
+                  <div className="bg-white border border-slate-200 rounded-2xl px-4 py-2 shadow-sm flex flex-col min-w-[100px]">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Tipo Verba</span>
+                    <span className="text-xs font-black text-slate-700 uppercase">
+                      {selectedInitiative.costType || 'OPEX'}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </header>
