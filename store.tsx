@@ -311,14 +311,31 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const addUser = async (name: string, position?: string, reportsTo?: string, file?: File) => {
     if (!supabase) return;
-    let avatar_url = null;
-    if (file) {
-      const path = `avatars/${Date.now()}-${file.name}`;
-      const { data } = await supabase.storage.from('avatars').upload(path, file);
-      if (data) avatar_url = supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;
+    try {
+      let avatar_url = null;
+      if (file) {
+        const path = `avatars/${Date.now()}-${file.name}`;
+        const { data, error: uploadError } = await supabase.storage.from('avatars').upload(path, file);
+        if (uploadError) {
+          console.error("Erro ao subir avatar para o Supabase Storage:", uploadError);
+        } else if (data) {
+          avatar_url = supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;
+        }
+      }
+      const { error: insertError } = await supabase.from('profiles').insert([{ 
+        name, 
+        position: position || null, 
+        reports_to: reportsTo || null, 
+        avatar_url 
+      }]);
+      if (insertError) {
+        console.error("Erro ao inserir novo perfil no Supabase:", insertError);
+        alert(`Erro ao cadastrar membro no banco de dados: ${insertError.message}`);
+      }
+      await fetchData();
+    } catch (err: any) {
+      console.error("Erro inesperado em addUser:", err);
     }
-    await supabase.from('profiles').insert([{ name, position, reports_to: reportsTo, avatar_url }]);
-    await fetchData();
   };
 
   const updateUser = async (id: string, updates: Partial<User>) => {
