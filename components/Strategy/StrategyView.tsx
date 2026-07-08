@@ -8,7 +8,7 @@ import {
   AlertTriangle, Settings, ChevronsRight, Boxes, Monitor, Database, Flag, Loader2
 } from 'lucide-react';
 import { useAgile } from '../../store';
-import { User, Strategy } from '../../types';
+import { User, Strategy, WorkItem, ItemType, ItemStatus } from '../../types';
 
 interface OrgCardProps {
   user: User;
@@ -188,7 +188,7 @@ const SectionHeader: React.FC<{ title: string; number: string }> = ({ title, num
 );
 
 const StrategyView: React.FC = () => {
-  const { users, updateUser, removeUser, strategy, updateStrategy } = useAgile();
+  const { users, updateUser, removeUser, strategy, updateStrategy, workItems } = useAgile();
   const [showAssignModal, setShowAssignModal] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isEditingStrategy, setIsEditingStrategy] = useState(false);
@@ -198,6 +198,22 @@ const StrategyView: React.FC = () => {
   const roots = useMemo(() => {
     return users.filter(u => !u.reportsTo || !users.some(parent => String(parent.id) === String(u.reportsTo)));
   }, [users]);
+
+  // Resumo de quantos projetos cada colaborador é dono
+  const projectSummary = useMemo(() => {
+    return users.map(user => {
+      const ownedWS = workItems.filter(item => item.type === ItemType.WORKSTREAM && item.assigneeId === user.id);
+      const ownedInit = workItems.filter(item => item.type === ItemType.INITIATIVE && item.assigneeId === user.id);
+      const totalProjects = ownedWS.length + ownedInit.length;
+      return {
+        user,
+        ownedWS: ownedWS.length,
+        ownedInit: ownedInit.length,
+        totalProjects
+      };
+    }).filter(p => p.totalProjects > 0)
+      .sort((a, b) => b.totalProjects - a.totalProjects);
+  }, [users, workItems]);
 
   const handleEditStrategy = () => {
     if (strategy) {
@@ -259,6 +275,31 @@ const StrategyView: React.FC = () => {
     } finally {
       setIsUpdating(false);
     }
+  };
+
+  const calculateProjectProgress = (item: WorkItem) => {
+    if (item.type === ItemType.TASK || item.type === ItemType.BUG) {
+      return item.status === ItemStatus.CLOSED ? 100 : 0;
+    }
+    const getAllTRDescendants = (id: string): WorkItem[] => {
+      let results: WorkItem[] = [];
+      const children = workItems.filter(i => i.parentId === id);
+      children.forEach(child => {
+        if (child.type === ItemType.TASK || child.type === ItemType.BUG) results.push(child);
+        else results = [...results, ...getAllTRDescendants(child.id)];
+      });
+      return results;
+    };
+    const TRs = getAllTRDescendants(item.id);
+    if (TRs.length === 0) return item.status === ItemStatus.CLOSED ? 100 : 0;
+    const totalEffort = TRs.reduce((acc, curr) => acc + (curr.effort || 0), 0);
+    const completedEffort = TRs.filter(i => i.status === ItemStatus.CLOSED).reduce((acc, curr) => acc + (curr.effort || 0), 0);
+    if (totalEffort === 0) return (TRs.filter(i => i.status === ItemStatus.CLOSED).length / TRs.length) * 100;
+    return (completedEffort / totalEffort) * 100;
+  };
+
+  const getWSInitiatives = (wsId: string) => {
+    return workItems.filter(item => item.type === ItemType.INITIATIVE && (item.parentId === wsId || item.workstreamId === wsId));
   };
 
   if (!strategy) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin text-blue-600" size={48} /></div>;
@@ -610,6 +651,217 @@ const StrategyView: React.FC = () => {
                      </div>
                    )}
                  </div>
+               </div>
+             </div>
+          </div>
+        </div>
+      </div> {/* Closes max-w-7xl mx-auto px-6 py-8 */}
+
+      {/* PARTE 5: ORGANOGRAMA DE PROJETOS - FULL SCREEN CANVAS */}
+      <div className="w-full px-4 md:px-12 mt-32">
+        <div className="text-center">
+          <SectionHeader title="Organograma de Projetos" number="5" />
+          <div className="relative py-24 border-t-2 border-slate-50 bg-slate-50/20 rounded-[5rem] mt-4 shadow-inner w-full">
+             
+             <div className="text-center mb-16">
+                <div className="inline-flex items-center gap-6 bg-slate-900 text-white px-12 py-5 rounded-[2rem] shadow-2xl mb-8 border border-slate-800">
+                   <Boxes size={32} className="text-blue-400" />
+                   <h2 className="text-4xl font-black uppercase tracking-tighter leading-none">Organograma de Projetos</h2>
+                </div>
+                <p className="text-sm font-black text-slate-400 uppercase tracking-[0.4em] mb-12">Hierarquia de Frentes de Trabalho e Iniciativas</p>
+
+                {/* Resumo de Projetos por Colaborador */}
+                {projectSummary.length > 0 && (
+                  <div className="max-w-6xl mx-auto px-6 mb-12">
+                    <div className="bg-white/90 backdrop-blur-md rounded-[2.5rem] p-8 border border-slate-100 shadow-xl">
+                      <h3 className="text-xs font-black uppercase tracking-[0.25em] text-slate-400 mb-6">
+                        Resumo de Liderança de Projetos
+                      </h3>
+                      <div className="flex flex-wrap gap-4 justify-center">
+                        {projectSummary.map(({ user, ownedWS, ownedInit, totalProjects }) => (
+                          <div key={user.id} className="flex items-center gap-4 bg-slate-50 border border-slate-100 rounded-[1.8rem] p-3 px-5 hover:shadow-md hover:border-slate-200 transition-all">
+                            <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden border border-white shadow-sm flex-shrink-0">
+                              {user.avatar_url ? (
+                                <img src={user.avatar_url} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center font-black text-sm text-slate-600 bg-slate-100">
+                                  {user.name[0]}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-left">
+                              <h4 className="text-[11px] font-black uppercase text-slate-800 leading-none">
+                                {user.name.split(' ').slice(0, 2).join(' ')}
+                              </h4>
+                              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mt-1">
+                                {user.position || 'Colaborador'}
+                              </p>
+                              <div className="flex gap-2 mt-1.5">
+                                {ownedWS > 0 && (
+                                  <span className="text-[8px] font-black bg-purple-50 text-purple-600 border border-purple-100 px-2 py-0.5 rounded-full uppercase">
+                                    {ownedWS} {ownedWS === 1 ? 'Frente' : 'Frentes'}
+                                  </span>
+                                )}
+                                {ownedInit > 0 && (
+                                  <span className="text-[8px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-full uppercase">
+                                    {ownedInit} {ownedInit === 1 ? 'Inic.' : 'Inic.'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+             </div>
+
+             <div className="overflow-x-auto pb-40 custom-scrollbar">
+               <div className="min-w-max flex flex-col items-center px-24">
+                 
+                 {/* Root Card for Project Area */}
+                 <div className="inline-flex items-center bg-slate-900 text-white p-5 rounded-[2rem] shadow-2xl border border-slate-800 max-w-sm relative z-20 hover:scale-105 transition-transform duration-300">
+                   <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-xl shadow-lg mr-4 flex-shrink-0">
+                     E
+                   </div>
+                   <div className="text-left pr-4">
+                     <h3 className="text-[13px] font-black uppercase tracking-tight leading-none mb-1">ENGENHARIA DA CERVEJARIA</h3>
+                     <p className="text-[9px] font-black text-blue-400 uppercase tracking-wider">Estrutura e Portfolio de Projetos</p>
+                   </div>
+                 </div>
+
+                 {(() => {
+                   const workstreams = workItems.filter(item => item.type === ItemType.WORKSTREAM);
+                   return workstreams.length > 0 ? (
+                     <div className="relative pt-16 flex justify-center w-full">
+                       {/* Linha saindo do Root para BAIXO */}
+                       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[2px] h-8 bg-slate-300" />
+                       
+                       {/* Linha HORIZONTAL conectando os Workstreams */}
+                       <div className="absolute top-8 left-0 right-0 h-[2px] bg-slate-300 mx-auto" style={{ width: workstreams.length > 1 ? `calc(100% - ${100 / workstreams.length}%)` : '2px' }} />
+                       
+                       <div className="flex gap-16 items-start">
+                         {workstreams.map(ws => {
+                           const wsAssignee = users.find(u => u.id === ws.assigneeId);
+                           const initiatives = getWSInitiatives(ws.id);
+                           const wsProgress = calculateProjectProgress(ws);
+
+                           return (
+                             <div key={ws.id} className="flex flex-col items-center relative min-w-[280px]">
+                               {/* Linha subindo do Workstream para o barramento horizontal */}
+                               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[2px] h-8 bg-slate-300" />
+                               
+                               <div className="pt-8 flex flex-col items-center w-full">
+                                 {/* Workstream Card (Level 2) */}
+                                 <div className="relative flex items-center bg-gradient-to-r from-purple-500 to-indigo-600 p-4 rounded-[1.8rem] shadow-xl border border-indigo-400 w-[270px] text-white hover:scale-105 transition-all duration-300 relative z-20">
+                                   <div className="absolute -top-3 left-6 px-3 py-0.5 rounded-full bg-white text-indigo-700 text-[8px] font-black uppercase shadow-lg tracking-widest border border-indigo-100">
+                                     Frente de Trabalho
+                                   </div>
+                                   
+                                   {/* Circular Avatar / Icon on the left */}
+                                   <div className="w-12 h-12 rounded-2xl bg-white/15 border border-white/20 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-inner mr-3.5">
+                                     {wsAssignee ? (
+                                       wsAssignee.avatar_url ? (
+                                         <img src={wsAssignee.avatar_url} className="w-full h-full object-cover" />
+                                       ) : (
+                                         <span className="text-white font-black text-sm">{wsAssignee.name[0]}</span>
+                                       )
+                                     ) : (
+                                       <Boxes size={22} className="text-white/80" />
+                                     )}
+                                   </div>
+                                   
+                                   {/* Text on the right */}
+                                   <div className="flex-1 text-left min-w-0">
+                                     <h4 className="text-[11px] font-black uppercase tracking-tight leading-snug truncate mb-1" title={ws.title}>
+                                       {ws.title}
+                                     </h4>
+                                     <div className="flex items-center justify-between">
+                                       <p className="text-[8px] font-bold text-indigo-200 uppercase tracking-wider truncate mr-2">
+                                         {wsAssignee ? wsAssignee.name : 'Sem dono'}
+                                       </p>
+                                       <span className="text-[8px] font-black text-white/90 bg-black/20 px-1.5 py-0.5 rounded">{Math.round(wsProgress)}%</span>
+                                     </div>
+                                   </div>
+                                 </div>
+
+                                 {/* Initiatives below (Level 3) */}
+                                 {initiatives.length > 0 ? (
+                                   <div className="relative pt-12 flex flex-col items-center w-full">
+                                     {/* Line coming from Workstream card down */}
+                                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[2px] h-full bg-slate-300" />
+
+                                     <div className="flex flex-col gap-8 w-full items-center relative z-10">
+                                       {initiatives.map((init) => {
+                                         const initAssignee = users.find(u => u.id === init.assigneeId);
+                                         const progress = calculateProjectProgress(init);
+                                         return (
+                                           <div key={init.id} className="relative w-full flex justify-center">
+                                             {/* Initiative Card */}
+                                             <div className="relative flex items-center bg-white p-3.5 rounded-[1.5rem] shadow-md border border-slate-100 w-[250px] hover:scale-105 hover:shadow-lg transition-all duration-300">
+                                               <div className="absolute -top-2.5 left-4 px-2.5 py-0.5 rounded-full bg-emerald-500 text-white text-[7px] font-black uppercase tracking-widest shadow-sm">
+                                                 Iniciativa
+                                               </div>
+                                               
+                                               {/* Circular Avatar / Icon on the left */}
+                                               <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-inner mr-3 text-slate-400">
+                                                 {initAssignee ? (
+                                                   initAssignee.avatar_url ? (
+                                                     <img src={initAssignee.avatar_url} className="w-full h-full object-cover" />
+                                                   ) : (
+                                                     <span className="text-slate-500 font-black text-xs">{initAssignee.name[0]}</span>
+                                                   )
+                                                 ) : (
+                                                   <Target size={18} className="text-slate-400" />
+                                                 )}
+                                               </div>
+                                               
+                                               {/* Text on the right */}
+                                               <div className="flex-1 text-left min-w-0">
+                                                 <h5 className="text-[10px] font-black text-slate-800 uppercase tracking-tight leading-tight truncate mb-1" title={init.title}>
+                                                   {init.title}
+                                                 </h5>
+                                                 
+                                                 <div className="flex items-center justify-between">
+                                                   <span className="text-[7.5px] font-bold text-slate-400 uppercase tracking-wider truncate mr-2">
+                                                     {initAssignee ? initAssignee.name : 'Sem dono'}
+                                                   </span>
+                                                   <span className="text-[8px] font-black text-slate-500">{Math.round(progress)}%</span>
+                                                 </div>
+                                                 
+                                                 {/* Mini Progress Bar */}
+                                                 <div className="w-full bg-slate-100 h-1 rounded-full mt-1.5 overflow-hidden">
+                                                   <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+                                                 </div>
+                                               </div>
+                                             </div>
+                                           </div>
+                                         );
+                                       })}
+                                     </div>
+                                   </div>
+                                 ) : (
+                                   <div className="relative pt-12 flex flex-col items-center w-full">
+                                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[2px] h-6 bg-slate-300" />
+                                     <div className="relative z-10 bg-slate-100 border border-slate-200/50 rounded-2xl px-4 py-2 text-[8px] font-black uppercase text-slate-400">
+                                       Sem Iniciativas
+                                     </div>
+                                   </div>
+                                 )}
+                               </div>
+                             </div>
+                           );
+                         })}
+                       </div>
+                     </div>
+                   ) : (
+                     <div className="text-center py-24 opacity-20 flex flex-col items-center gap-8">
+                        <Boxes size={100} strokeWidth={1} />
+                        <p className="text-3xl font-black uppercase tracking-tighter text-center">Nenhuma frente de trabalho encontrada<br/>Cadastre frentes no backlog</p>
+                     </div>
+                   );
+                 })()}
                </div>
              </div>
           </div>
