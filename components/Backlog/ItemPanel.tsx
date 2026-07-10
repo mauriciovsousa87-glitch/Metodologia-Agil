@@ -200,6 +200,34 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
           </section>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6 p-4 lg:p-6 bg-slate-50 rounded-3xl border border-slate-100 shadow-inner">
+            {(item.type === ItemType.WORKSTREAM || item.type === ItemType.INITIATIVE) && (
+              <div className="sm:col-span-2 flex items-center justify-between p-3.5 bg-white rounded-2xl border border-slate-150 shadow-sm">
+                <div className="flex flex-col text-left">
+                  <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Status do Projeto</span>
+                  <span className="text-[9px] text-slate-400 font-medium">Projetos congelados não aparecem no organograma de projetos.</span>
+                </div>
+                <button 
+                  onClick={() => handleUpdateImmediate({ blocked: !item.blocked })}
+                  className={`px-4 py-2 text-[10px] font-black rounded-xl transition-all uppercase tracking-wider shadow-sm flex items-center gap-1.5 ${
+                    !item.blocked 
+                      ? 'bg-emerald-500 hover:bg-emerald-600 text-white' 
+                      : 'bg-amber-500 hover:bg-amber-600 text-white'
+                  }`}
+                >
+                  {!item.blocked ? (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                      Ativo
+                    </>
+                  ) : (
+                    <>
+                      <span>❄️</span>
+                      Congelado (Inativo)
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Status</label>
               <select className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl p-2 bg-white cursor-pointer" value={item.status} onChange={(e) => handleUpdateImmediate({ status: e.target.value as any })}>
