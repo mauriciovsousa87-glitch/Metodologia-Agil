@@ -5,7 +5,7 @@ import {
   Menu, X, Plus, Bell, AlertCircle, Calendar, DollarSign, GitCommitHorizontal,
   ChevronLeft, ChevronRight, Target, FileText
 } from 'lucide-react';
-import { ViewType } from '../types';
+import { ViewType, ItemType } from '../types';
 import { useAgile } from '../store';
 
 interface LayoutProps {
@@ -57,7 +57,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
     onViewChange('Sprints');
   };
 
-  const blockedItemsCount = workItems.filter(i => i.blocked).length;
+  const blockedItemsCount = workItems.filter(i => i.blocked && i.type !== ItemType.INITIATIVE && i.type !== ItemType.DELIVERY).length;
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden font-sans">
@@ -168,7 +168,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeView, onViewChange }) =
                     </div>
                     <div className="max-h-96 overflow-y-auto custom-scrollbar bg-white">
                       {blockedItemsCount > 0 ? (
-                        workItems.filter(i => i.blocked).map(item => (
+                        workItems.filter(i => i.blocked && i.type !== ItemType.INITIATIVE && i.type !== ItemType.DELIVERY).map(item => (
                           <div key={item.id} className="p-4 hover:bg-red-50 transition-colors border-b border-gray-50 flex gap-3">
                             <AlertCircle size={18} className="text-red-500 shrink-0 mt-0.5" />
                             <div>

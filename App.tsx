@@ -27,6 +27,10 @@ const SettingsView: React.FC = () => {
   const [editName, setEditName] = useState('');
   const [editPosition, setEditPosition] = useState('');
   const [editReportsTo, setEditReportsTo] = useState('');
+  const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null);
+  const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(null);
+  const [isEditAvatarRemoved, setIsEditAvatarRemoved] = useState(false);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -34,6 +38,17 @@ const SettingsView: React.FC = () => {
       setAvatarFile(file);
       const reader = new FileReader();
       reader.onload = (event) => setAvatarPreview(event.target?.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditAvatarFile(file);
+      setIsEditAvatarRemoved(false);
+      const reader = new FileReader();
+      reader.onload = (event) => setEditAvatarPreview(event.target?.result as string);
       reader.readAsDataURL(file);
     }
   };
@@ -53,17 +68,35 @@ const SettingsView: React.FC = () => {
     setEditName(user.name);
     setEditPosition(user.position || '');
     setEditReportsTo(user.reportsTo || '');
+    setEditAvatarFile(null);
+    setEditAvatarPreview(user.avatar_url || null);
+    setIsEditAvatarRemoved(false);
+  };
+
+  const cancelEditing = () => {
+    setEditingUserId(null);
+    setEditName('');
+    setEditPosition('');
+    setEditReportsTo('');
+    setEditAvatarFile(null);
+    setEditAvatarPreview(null);
+    setIsEditAvatarRemoved(false);
   };
 
   const handleUpdate = async () => {
-    if (editingUserId) {
+    if (editingUserId && editName.trim()) {
       setIsSaving(true);
-      await updateUser(editingUserId, { 
-        name: editName, 
-        position: editPosition, 
-        reportsTo: editReportsTo 
-      });
-      setEditingUserId(null);
+      await updateUser(
+        editingUserId, 
+        { 
+          name: editName.trim(), 
+          position: editPosition.trim() || undefined, 
+          reportsTo: editReportsTo || undefined,
+          avatar_url: isEditAvatarRemoved ? null : undefined
+        },
+        editAvatarFile ? editAvatarFile : (isEditAvatarRemoved ? null : undefined)
+      );
+      cancelEditing();
       setIsSaving(false);
     }
   };
@@ -114,17 +147,128 @@ const SettingsView: React.FC = () => {
             {users.map(u => (
               <div key={u.id} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm hover:shadow-md transition-all flex items-center justify-between group">
                 <div className="flex items-center gap-4 flex-1">
-                  {u.avatar_url ? (
-                    <img src={u.avatar_url} className="w-12 h-12 rounded-2xl object-cover shadow-sm" />
+                  {editingUserId === u.id ? (
+                    <div className="relative flex-shrink-0 group/editAvatar">
+                      <input 
+                        type="file" 
+                        ref={editFileInputRef} 
+                        className="hidden" 
+                        accept="image/*" 
+                        onChange={handleEditFileChange} 
+                      />
+                      <button
+                        type="button"
+                        onClick={() => editFileInputRef.current?.click()}
+                        className="w-16 h-16 rounded-2xl bg-slate-50 border-2 border-dashed border-blue-400 hover:border-blue-600 flex flex-col items-center justify-center cursor-pointer overflow-hidden relative shadow-sm hover:shadow-md transition-all group/avatarBtn"
+                        title="Clique para incluir ou alterar foto"
+                      >
+                        {editAvatarPreview ? (
+                          <>
+                            <img src={editAvatarPreview} className="w-full h-full object-cover" alt={editName} />
+                            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[1px] flex flex-col items-center justify-center opacity-0 group-hover/avatarBtn:opacity-100 transition-opacity text-white p-1 text-center">
+                              <Camera size={18} className="text-white drop-shadow" />
+                              <span className="text-[8px] font-black uppercase tracking-wider mt-0.5">Trocar</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-blue-600 p-1 text-center">
+                            <Camera size={22} className="group-hover/avatarBtn:scale-110 transition-transform" />
+                            <span className="text-[8px] font-black uppercase tracking-tighter mt-1 leading-tight">Adicionar Foto</span>
+                          </div>
+                        )}
+                      </button>
+                      
+                      {/* Botão para remover foto */}
+                      {editAvatarPreview && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditAvatarFile(null);
+                            setEditAvatarPreview(null);
+                            setIsEditAvatarRemoved(true);
+                          }}
+                          className="absolute -bottom-1 -right-1 bg-rose-500 hover:bg-rose-600 text-white rounded-full p-1 shadow-md hover:scale-110 transition-all z-10"
+                          title="Remover foto do funcionário"
+                        >
+                          <X size={11} strokeWidth={3} />
+                        </button>
+                      )}
+                    </div>
                   ) : (
-                    <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center text-lg font-black text-blue-700 shadow-inner">{u.name[0]}</div>
+                    <div 
+                      onClick={() => startEditing(u)}
+                      className="relative cursor-pointer group/avatar flex-shrink-0"
+                      title="Clique para editar funcionário e foto"
+                    >
+                      {u.avatar_url ? (
+                        <img src={u.avatar_url} className="w-12 h-12 rounded-2xl object-cover shadow-sm group-hover/avatar:ring-2 group-hover/avatar:ring-blue-400 transition-all" alt={u.name} />
+                      ) : (
+                        <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center text-lg font-black text-blue-700 shadow-inner group-hover/avatar:ring-2 group-hover/avatar:ring-blue-400 transition-all">
+                          {u.name[0]}
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-slate-900/40 rounded-2xl opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center text-white">
+                        <Camera size={16} />
+                      </div>
+                    </div>
                   )}
                   
                   {editingUserId === u.id ? (
-                    <div className="flex-1 grid grid-cols-1 gap-2">
-                      <input type="text" className="bg-slate-50 border border-blue-200 rounded-lg px-3 py-1 text-xs font-bold" value={editName} onChange={(e) => setEditName(e.target.value)} />
-                      <input type="text" className="bg-slate-50 border border-blue-200 rounded-lg px-3 py-1 text-xs font-bold" value={editPosition} onChange={(e) => setEditPosition(e.target.value)} placeholder="Cargo" />
-                      <select className="bg-slate-50 border border-blue-200 rounded-lg px-3 py-1 text-xs font-bold" value={editReportsTo} onChange={(e) => setEditReportsTo(e.target.value)}>
+                    <div className="flex-1 grid grid-cols-1 gap-2 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => editFileInputRef.current?.click()}
+                            className="text-[11px] font-bold text-blue-600 hover:text-blue-800 underline flex items-center gap-1.5"
+                          >
+                            <Camera size={13} />
+                            <span>{editAvatarPreview ? 'Alterar foto...' : 'Incluir foto...'}</span>
+                          </button>
+                          {editAvatarPreview && (
+                            <>
+                              <span className="text-slate-300">•</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditAvatarFile(null);
+                                  setEditAvatarPreview(null);
+                                  setIsEditAvatarRemoved(true);
+                                }}
+                                className="text-[11px] font-bold text-rose-500 hover:text-rose-700 underline"
+                              >
+                                Remover foto
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        {editAvatarFile && (
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            Nova foto selecionada
+                          </span>
+                        )}
+                      </div>
+                      <input 
+                        type="text" 
+                        className="bg-slate-50 border border-blue-300 rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                        value={editName} 
+                        onChange={(e) => setEditName(e.target.value)} 
+                        placeholder="Nome completo"
+                        required 
+                      />
+                      <input 
+                        type="text" 
+                        className="bg-slate-50 border border-blue-300 rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                        value={editPosition} 
+                        onChange={(e) => setEditPosition(e.target.value)} 
+                        placeholder="Cargo" 
+                      />
+                      <select 
+                        className="bg-slate-50 border border-blue-300 rounded-lg px-3 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                        value={editReportsTo} 
+                        onChange={(e) => setEditReportsTo(e.target.value)}
+                      >
                         <option value="">Sem superior</option>
                         {users.filter(other => other.id !== u.id).map(other => <option key={other.id} value={other.id}>{other.name}</option>)}
                       </select>
@@ -137,13 +281,48 @@ const SettingsView: React.FC = () => {
                   )}
                 </div>
 
-                <div className="flex items-center gap-1 ml-4">
+                <div className="flex items-center gap-1 ml-4 flex-shrink-0">
                   {editingUserId === u.id ? (
-                    <button onClick={handleUpdate} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><Save size={18} /></button>
+                    <>
+                      <button 
+                        onClick={handleUpdate} 
+                        disabled={isSaving}
+                        className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors disabled:opacity-50"
+                        title="Salvar alterações"
+                      >
+                        <Save size={18} />
+                      </button>
+                      <button 
+                        onClick={cancelEditing} 
+                        disabled={isSaving}
+                        className="p-2.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 rounded-xl transition-colors"
+                        title="Cancelar edição"
+                      >
+                        <X size={18} />
+                      </button>
+                    </>
                   ) : (
-                    <button onClick={() => startEditing(u)} className="p-2 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"><SettingsIcon size={18} /></button>
+                    <>
+                      <button 
+                        onClick={() => startEditing(u)} 
+                        className="p-2 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"
+                        title="Editar funcionário e foto"
+                      >
+                        <SettingsIcon size={18} />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (confirm(`Deseja realmente remover ${u.name}?`)) {
+                            removeUser(u.id);
+                          }
+                        }} 
+                        className="p-2 text-slate-300 hover:text-red-500 transition-colors rounded-lg"
+                        title="Remover funcionário"
+                      >
+                        <X size={18} />
+                      </button>
+                    </>
                   )}
-                  <button onClick={() => removeUser(u.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors rounded-lg"><X size={18} /></button>
                 </div>
               </div>
             ))}

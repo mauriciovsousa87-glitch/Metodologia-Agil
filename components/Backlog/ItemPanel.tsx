@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   X, Trash2, ListTodo, Calendar, AlertCircle, AlertTriangle, 
-  Upload, Download, Paperclip, ChevronRight, Lock, Unlock, AlignLeft, Loader2, ExternalLink, Tag, Target, Zap, DollarSign, ShoppingCart, FileText, CreditCard, Layers, Box
+  Upload, Download, Paperclip, ChevronRight, Lock, Unlock, AlignLeft, Loader2, ExternalLink, Tag, Target, Zap, DollarSign, ShoppingCart, FileText, CreditCard, Layers, Box, Snowflake, CheckCircle2
 } from 'lucide-react';
 import { WorkItem, ItemPriority, ItemStatus, Attachment, ItemType } from '../../types';
 import { useAgile } from '../../store';
@@ -51,6 +51,27 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
     }
     return path;
   }, [item.parentId, workItems]);
+
+  const isCompleted = useMemo(() => {
+    if (item.status === ItemStatus.CLOSED) return true;
+    if (item.type === ItemType.INITIATIVE || item.type === ItemType.DELIVERY) {
+      const getDescendantTasks = (parentId: string): WorkItem[] => {
+        const direct = workItems.filter(i => i.parentId === parentId);
+        let tasks = direct.filter(i => i.type === ItemType.TASK || i.type === ItemType.BUG);
+        for (const child of direct) {
+          if (child.type !== ItemType.TASK && child.type !== ItemType.BUG) {
+            tasks = [...tasks, ...getDescendantTasks(child.id)];
+          }
+        }
+        return tasks;
+      };
+      const tasks = getDescendantTasks(item.id);
+      if (tasks.length > 0 && tasks.every(t => t.status === ItemStatus.CLOSED)) {
+        return true;
+      }
+    }
+    return false;
+  }, [item, workItems]);
 
   // Sincronizar estado local quando o item muda
   useEffect(() => {
@@ -156,6 +177,16 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
             }`}>
               {item.type}
             </div>
+            {(item.type === ItemType.INITIATIVE || item.type === ItemType.DELIVERY) && item.blocked && (
+              <span className="px-2 py-1 rounded-md text-[9px] font-black uppercase bg-cyan-100 text-cyan-800 border border-cyan-300 flex items-center gap-1 shadow-sm">
+                <Snowflake size={11} /> Congelado
+              </span>
+            )}
+            {(item.type === ItemType.INITIATIVE || item.type === ItemType.DELIVERY) && !item.blocked && isCompleted && (
+              <span className="px-2 py-1 rounded-md text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-sm">
+                <CheckCircle2 size={11} /> Concluido
+              </span>
+            )}
           </div>
           <button onClick={handleClose} className="p-2 text-slate-400 hover:text-slate-900 transition-colors">
             <X size={24} />
@@ -200,32 +231,69 @@ const ItemPanel: React.FC<ItemPanelProps> = ({ item, onClose }) => {
           </section>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6 p-4 lg:p-6 bg-slate-50 rounded-3xl border border-slate-100 shadow-inner">
-            {(item.type === ItemType.WORKSTREAM || item.type === ItemType.INITIATIVE) && (
-              <div className="sm:col-span-2 flex items-center justify-between p-3.5 bg-white rounded-2xl border border-slate-150 shadow-sm">
-                <div className="flex flex-col text-left">
-                  <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Status do Projeto</span>
-                  <span className="text-[9px] text-slate-400 font-medium">Projetos congelados não aparecem no organograma de projetos.</span>
+            {(item.type === ItemType.INITIATIVE || item.type === ItemType.DELIVERY) && (
+              <div className={`sm:col-span-2 p-4 rounded-2xl border transition-all ${
+                item.blocked 
+                  ? 'bg-cyan-50/80 border-cyan-200 shadow-sm' 
+                  : 'bg-white border-slate-200/80 shadow-sm'
+              }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2.5 rounded-xl shrink-0 ${
+                      item.blocked ? 'bg-cyan-100 text-cyan-700' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      <Snowflake size={20} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-800">
+                          {item.blocked 
+                            ? (item.type === ItemType.DELIVERY ? 'Entrega Congelada' : 'Projeto Congelado') 
+                            : (item.type === ItemType.DELIVERY ? 'Congelar Entrega' : 'Congelar Projeto')}
+                        </span>
+                        {item.blocked ? (
+                          <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-cyan-200 text-cyan-900 border border-cyan-300">
+                            Não avançou
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            Ativo
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[9px] text-slate-500 mt-1 leading-relaxed">
+                        {item.blocked
+                          ? (item.type === ItemType.DELIVERY 
+                              ? 'Esta entrega está congelada (não foi para frente). Ela fica oculta ao filtrar concluídos e congelados no Backlog.'
+                              : 'Este projeto está congelado (não foi para frente). Ele fica oculto ao filtrar concluídos e congelados no Backlog e não é exibido no organograma.')
+                          : (item.type === ItemType.DELIVERY
+                              ? 'Para casos de entregas que não foram para frente. Entregas congeladas podem ser ocultadas no backlog.'
+                              : 'Para casos de projetos que não foram para frente. Projetos congelados podem ser ocultados no backlog e não aparecem no organograma.')}
+                      </p>
+                    </div>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => handleUpdateImmediate({ blocked: !item.blocked })}
+                    className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 flex items-center justify-center gap-1.5 shadow-sm active:scale-95 ${
+                      item.blocked 
+                        ? 'bg-cyan-600 hover:bg-cyan-700 text-white' 
+                        : 'bg-slate-100 hover:bg-cyan-50 hover:text-cyan-700 hover:border-cyan-200 text-slate-700 border border-slate-200'
+                    }`}
+                  >
+                    {item.blocked ? (
+                      <>
+                        <Snowflake size={12} />
+                        <span>{item.type === ItemType.DELIVERY ? 'Descongelar Entrega' : 'Descongelar Projeto'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Snowflake size={12} />
+                        <span>{item.type === ItemType.DELIVERY ? 'Congelar Entrega' : 'Congelar Projeto'}</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-                <button 
-                  onClick={() => handleUpdateImmediate({ blocked: !item.blocked })}
-                  className={`px-4 py-2 text-[10px] font-black rounded-xl transition-all uppercase tracking-wider shadow-sm flex items-center gap-1.5 ${
-                    !item.blocked 
-                      ? 'bg-emerald-500 hover:bg-emerald-600 text-white' 
-                      : 'bg-amber-500 hover:bg-amber-600 text-white'
-                  }`}
-                >
-                  {!item.blocked ? (
-                    <>
-                      <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                      Ativo
-                    </>
-                  ) : (
-                    <>
-                      <span>❄️</span>
-                      Congelado (Inativo)
-                    </>
-                  )}
-                </button>
               </div>
             )}
             <div className="space-y-1.5">

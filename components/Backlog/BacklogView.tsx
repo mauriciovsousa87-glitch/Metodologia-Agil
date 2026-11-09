@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   ChevronRight, ChevronDown, Filter, 
   Layers, Trash2, BarChart2, Zap, GripVertical,
-  MessageCircle
+  MessageCircle, Eye, EyeOff, Snowflake, CheckCircle2
 } from 'lucide-react';
 import { useAgile } from '../../store';
 import { WorkItem, ItemType, ItemStatus } from '../../types';
@@ -14,6 +14,7 @@ type SortKey = 'priority' | 'assigneeId' | 'kpi' | 'kpiImpact' | 'effort' | 'sta
 const BacklogView: React.FC = () => {
   const { workItems, users, sprints, addWorkItem, deleteWorkItem, updateWorkItem } = useAgile();
   const [isHierarchical, setIsHierarchical] = useState(true);
+  const [hideCompleted, setHideCompleted] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [filterText, setFilterText] = useState('');
@@ -82,9 +83,64 @@ const BacklogView: React.FC = () => {
     setSortConfig({ key, direction });
   };
 
+  const calculateRollup = (item: WorkItem) => {
+    if (item.type === ItemType.TASK || item.type === ItemType.BUG) {
+      return { progress: item.status === ItemStatus.CLOSED ? 100 : 0 };
+    }
+    const getAllTRDescendants = (id: string): WorkItem[] => {
+      let results: WorkItem[] = [];
+      const children = workItems.filter(i => i.parentId === id);
+      children.forEach(child => {
+        if (child.type === ItemType.TASK || child.type === ItemType.BUG) results.push(child);
+        else results = [...results, ...getAllTRDescendants(child.id)];
+      });
+      return results;
+    };
+    const TRs = getAllTRDescendants(item.id);
+    if (TRs.length === 0) return { progress: item.status === ItemStatus.CLOSED ? 100 : 0 };
+    const totalEffort = TRs.reduce((acc, curr) => acc + (curr.effort || 0), 0);
+    const completedEffort = TRs.filter(i => i.status === ItemStatus.CLOSED).reduce((acc, curr) => acc + (curr.effort || 0), 0);
+    if (totalEffort === 0) return { progress: (TRs.filter(i => i.status === ItemStatus.CLOSED).length / TRs.length) * 100 };
+    return { progress: (completedEffort / totalEffort) * 100 };
+  };
+
+  const isItemCompleted = (item: WorkItem) => {
+    return item.status === ItemStatus.CLOSED || calculateRollup(item).progress === 100;
+  };
+
+  const isItemFrozen = (item: WorkItem): boolean => {
+    if ((item.type === ItemType.INITIATIVE || item.type === ItemType.DELIVERY) && item.blocked) return true;
+    let currentParentId = item.parentId;
+    while (currentParentId) {
+      const parent = workItems.find(w => w.id === currentParentId);
+      if (parent) {
+        if ((parent.type === ItemType.INITIATIVE || parent.type === ItemType.DELIVERY) && parent.blocked) return true;
+        currentParentId = parent.parentId;
+      } else {
+        break;
+      }
+    }
+    return false;
+  };
+
+  const isItemCompletedOrFrozen = (item: WorkItem): boolean => {
+    if (isItemFrozen(item)) return true;
+    if (isItemCompleted(item)) return true;
+    if (item.type === ItemType.WORKSTREAM) {
+      const children = workItems.filter(i => i.parentId === item.id || i.workstreamId === item.id);
+      if (children.length > 0 && children.every(c => isItemCompleted(c) || isItemFrozen(c))) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const sortedAndFilteredItems = useMemo(() => {
     let items = [...workItems];
     if (filterText) items = items.filter(i => i.title.toLowerCase().includes(filterText.toLowerCase()));
+    if (hideCompleted && !isHierarchical) {
+      items = items.filter(i => !isItemCompletedOrFrozen(i));
+    }
     
     if (!sortConfig) {
       items.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
@@ -102,7 +158,7 @@ const BacklogView: React.FC = () => {
       });
     }
     return items;
-  }, [workItems, filterText, sortConfig, users]);
+  }, [workItems, filterText, sortConfig, users, hideCompleted, isHierarchical]);
 
   const handleShareWhatsApp = () => {
     const now = new Date();
@@ -193,27 +249,6 @@ const BacklogView: React.FC = () => {
     } finally { setIsProcessing(null); }
   };
 
-  const calculateRollup = (item: WorkItem) => {
-    if (item.type === ItemType.TASK || item.type === ItemType.BUG) {
-      return { progress: item.status === ItemStatus.CLOSED ? 100 : 0 };
-    }
-    const getAllTRDescendants = (id: string): WorkItem[] => {
-      let results: WorkItem[] = [];
-      const children = workItems.filter(i => i.parentId === id);
-      children.forEach(child => {
-        if (child.type === ItemType.TASK || child.type === ItemType.BUG) results.push(child);
-        else results = [...results, ...getAllTRDescendants(child.id)];
-      });
-      return results;
-    };
-    const TRs = getAllTRDescendants(item.id);
-    if (TRs.length === 0) return { progress: item.status === ItemStatus.CLOSED ? 100 : 0 };
-    const totalEffort = TRs.reduce((acc, curr) => acc + (curr.effort || 0), 0);
-    const completedEffort = TRs.filter(i => i.status === ItemStatus.CLOSED).reduce((acc, curr) => acc + (curr.effort || 0), 0);
-    if (totalEffort === 0) return { progress: (TRs.filter(i => i.status === ItemStatus.CLOSED).length / TRs.length) * 100 };
-    return { progress: (completedEffort / totalEffort) * 100 };
-  };
-
   const getItemSigla = (type: ItemType) => {
     switch (type) {
       case ItemType.WORKSTREAM: return 'FT';
@@ -285,7 +320,7 @@ const BacklogView: React.FC = () => {
   };
 
   const renderItem = (item: WorkItem, depth: number = 0) => {
-    const children = sortedAndFilteredItems.filter(i => i.parentId === item.id);
+    const children = sortedAndFilteredItems.filter(i => i.parentId === item.id && (!hideCompleted || !isItemCompletedOrFrozen(i)));
     const isExpanded = expandedItems.has(item.id);
     const { progress } = calculateRollup(item);
     const assignee = users.find(u => u.id === item.assigneeId);
@@ -307,6 +342,8 @@ const BacklogView: React.FC = () => {
           className={`
             border-b border-gray-100 hover:bg-blue-50/50 cursor-pointer transition-all group 
             ${selectedItemId === item.id ? 'bg-blue-50' : ''}
+            ${(item.type === ItemType.INITIATIVE || item.type === ItemType.DELIVERY) && isItemFrozen(item) ? 'bg-cyan-50/30' : ''}
+            ${(item.type === ItemType.INITIATIVE || item.type === ItemType.DELIVERY) && !isItemFrozen(item) && isItemCompleted(item) ? 'bg-emerald-50/25' : ''}
             ${isTarget ? 'border-t-4 border-t-blue-500 bg-blue-100/30' : ''}
             ${isDragged ? 'opacity-20 grayscale' : ''}
           `} 
@@ -335,6 +372,16 @@ const BacklogView: React.FC = () => {
                }`}>
                  {sigla}
                </span>
+               {(item.type === ItemType.INITIATIVE || item.type === ItemType.DELIVERY) && isItemFrozen(item) && (
+                 <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-cyan-100 text-cyan-800 border border-cyan-200 flex items-center gap-1 shrink-0 shadow-xs">
+                   <Snowflake size={9} className="text-cyan-700" /> Congelado
+                 </span>
+               )}
+               {(item.type === ItemType.INITIATIVE || item.type === ItemType.DELIVERY) && !isItemFrozen(item) && isItemCompleted(item) && (
+                 <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1 shrink-0 shadow-xs">
+                   <CheckCircle2 size={9} className="text-emerald-700" /> Concluido
+                 </span>
+               )}
                <span className="text-[11px] font-bold text-gray-800 group-hover:text-blue-600 truncate">{item.title}</span>
              </div>
           </td>
@@ -378,11 +425,21 @@ const BacklogView: React.FC = () => {
           </td>
           <td className="px-2 py-2 text-[10px] text-gray-500 truncate font-medium" style={{ width: colWidths.sprint }}>{sprint?.name || '-'}</td>
           <td className="px-2 py-2 text-center" style={{ width: colWidths.status }}>
-            <span className={`px-2 py-0.5 rounded text-[8px] font-black border uppercase tracking-widest ${
-              item.status === ItemStatus.CLOSED ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 
-              item.status === ItemStatus.IN_PROGRESS ? 'bg-amber-100 text-amber-700 border-amber-200' :
-              'bg-slate-100 text-slate-500 border-slate-200'
-            }`}>{item.status}</span>
+            {(item.type === ItemType.INITIATIVE || item.type === ItemType.DELIVERY) && isItemFrozen(item) ? (
+              <span className="px-2 py-0.5 rounded text-[8px] font-black border uppercase tracking-widest bg-cyan-100 text-cyan-800 border-cyan-300 inline-flex items-center gap-1 shadow-xs">
+                <Snowflake size={9} /> Congelado
+              </span>
+            ) : (item.type === ItemType.INITIATIVE || item.type === ItemType.DELIVERY) && isItemCompleted(item) ? (
+              <span className="px-2 py-0.5 rounded text-[8px] font-black border uppercase tracking-widest bg-emerald-100 text-emerald-800 border-emerald-300 inline-flex items-center gap-1 shadow-xs">
+                <CheckCircle2 size={9} /> Concluido
+              </span>
+            ) : (
+              <span className={`px-2 py-0.5 rounded text-[8px] font-black border uppercase tracking-widest ${
+                item.status === ItemStatus.CLOSED ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 
+                item.status === ItemStatus.IN_PROGRESS ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                'bg-slate-100 text-slate-500 border-slate-200'
+              }`}>{item.status}</span>
+            )}
           </td>
           <td className="px-2 py-2 text-right" style={{ width: colWidths.del }}>
              <button onClick={(e) => { e.stopPropagation(); if(armDeleteId === item.id) deleteWorkItem(item.id); else setArmDeleteId(item.id); }} className={`p-1 rounded ${armDeleteId === item.id ? 'bg-red-600 text-white' : 'text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100'}`}><Trash2 size={12} /></button>
@@ -419,6 +476,18 @@ const BacklogView: React.FC = () => {
             <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
             <input type="text" placeholder="BUSCAR ITEM..." className="bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-[10px] font-black uppercase focus:border-blue-500 focus:bg-white outline-none w-48" value={filterText} onChange={(e) => setFilterText(e.target.value)} />
           </div>
+          <button
+            onClick={() => setHideCompleted(prev => !prev)}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all border ${
+              hideCompleted 
+                ? 'bg-amber-50 text-amber-700 border-amber-300 shadow-sm ring-1 ring-amber-300' 
+                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+            }`}
+            title={hideCompleted ? "Mostrar projetos e itens concluídos e congelados" : "Ocultar projetos e itens concluídos e congelados"}
+          >
+            {hideCompleted ? <EyeOff size={14} className="text-amber-600" /> : <Eye size={14} className="text-slate-400" />}
+            <span>{hideCompleted ? 'Concluídos e Congelados: Ocultos' : 'Ocultar Concluídos e Congelados'}</span>
+          </button>
         </div>
         
         <div className="flex items-center gap-2">
@@ -451,7 +520,10 @@ const BacklogView: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {(isHierarchical ? sortedAndFilteredItems.filter(i => !i.parentId) : sortedAndFilteredItems).map(item => renderItem(item))}
+            {(isHierarchical 
+              ? sortedAndFilteredItems.filter(i => !i.parentId && (!hideCompleted || !isItemCompletedOrFrozen(i))) 
+              : sortedAndFilteredItems
+            ).map(item => renderItem(item))}
           </tbody>
         </table>
       </div>

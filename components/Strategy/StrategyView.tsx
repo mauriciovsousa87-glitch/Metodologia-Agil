@@ -5,10 +5,12 @@ import {
   Gauge, Trophy, Heart, Droplets, GanttChartSquare, Code2, Brain, 
   Users2, ArrowRight, Network, Microscope, Rocket, GraduationCap,
   HardDrive, ChevronLast, Plus, User as UserIcon, Settings as SettingsIcon, Lightbulb, Save, X, Trash2, UserMinus,
-  AlertTriangle, Settings, ChevronsRight, Boxes, Monitor, Database, Flag, Loader2, Maximize2, Minimize2, ZoomIn, ZoomOut, RotateCcw
+  AlertTriangle, Settings, ChevronsRight, Boxes, Monitor, Database, Flag, Loader2, Maximize2, Minimize2, ZoomIn, ZoomOut, RotateCcw,
+  Eye, EyeOff
 } from 'lucide-react';
 import { useAgile } from '../../store';
 import { User, Strategy, WorkItem, ItemType, ItemStatus } from '../../types';
+import { RoutineOrganogram } from './RoutineOrganogram';
 
 interface OrgCardProps {
   user: User;
@@ -47,79 +49,79 @@ const OrgCard: React.FC<OrgCardProps> = ({ user, onAddSubordinate, onUpdate, onR
 
   return (
     <div className="flex flex-col items-center relative z-20">
-      <div className="relative bg-white p-5 rounded-[2rem] shadow-xl border border-slate-100 w-60 transition-all hover:scale-105 hover:shadow-2xl group ring-1 ring-slate-100">
-        <div className={`absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-white text-[9px] font-black uppercase shadow-lg z-30 tracking-widest ${user.reportsTo ? 'bg-blue-500' : 'bg-slate-900'}`}>
+      <div className="relative bg-white p-3.5 rounded-[1.5rem] shadow-md border border-slate-100 w-44 transition-all hover:scale-105 hover:shadow-lg group ring-1 ring-slate-100/50">
+        <div className={`absolute -top-2.5 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-white text-[7px] font-black uppercase shadow-sm z-30 tracking-widest ${user.reportsTo ? 'bg-blue-500' : 'bg-slate-900'}`}>
            {user.reportsTo ? 'EQUIPE' : 'LIDERANÇA'}
         </div>
 
-        <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-40">
+        <div className="absolute top-2.5 right-2.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-40">
           <button 
             onClick={(e) => { e.stopPropagation(); setShowOptions(!showOptions); }}
-            className={`p-2 rounded-full transition-all shadow-sm ${showOptions ? 'bg-red-600 text-white' : 'bg-slate-50 text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
+            className={`p-1.5 rounded-full transition-all shadow-sm ${showOptions ? 'bg-red-600 text-white' : 'bg-slate-50 text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
           >
-            <Settings size={14} />
+            <Settings size={12} />
           </button>
         </div>
 
         {showOptions && (
           <>
             <div className="fixed inset-0 z-[90]" onClick={() => setShowOptions(false)} />
-            <div className="absolute top-10 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[100] p-1.5 w-52 animate-in fade-in zoom-in-95">
+            <div className="absolute top-8 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[100] p-1.5 w-48 animate-in fade-in zoom-in-95">
                {user.reportsTo && !deleteArmed && (
                  <button 
                     onClick={() => { onRemoveFromHierarchy(user.id); setShowOptions(false); }}
-                    className="w-full flex items-center gap-2.5 p-3 hover:bg-orange-50 text-orange-600 rounded-xl text-[10px] font-black uppercase transition-colors text-left"
+                    className="w-full flex items-center gap-2 p-2.5 hover:bg-orange-50 text-orange-600 rounded-xl text-[9px] font-black uppercase transition-colors text-left"
                  >
-                    <UserMinus size={14} /> Soltar na raiz
+                    <UserMinus size={12} /> Soltar na raiz
                  </button>
                )}
                
                <button 
                   onClick={handleArmedDelete}
-                  className={`w-full flex items-center gap-2.5 p-3 rounded-xl text-[10px] font-black uppercase transition-all text-left ${
+                  className={`w-full flex items-center gap-2 p-2.5 rounded-xl text-[9px] font-black uppercase transition-all text-left ${
                     deleteArmed ? 'bg-red-600 text-white animate-pulse shadow-lg' : 'hover:bg-red-50 text-red-600'
                   }`}
                >
-                  {deleteArmed ? <AlertTriangle size={14} /> : <Trash2 size={14} />} 
-                  {deleteArmed ? 'CLIQUE PARA CONFIRMAR' : 'Excluir Registro'}
+                  {deleteArmed ? <AlertTriangle size={12} /> : <Trash2 size={12} />} 
+                  {deleteArmed ? 'CONFIRMAR EXCLUSÃO' : 'Excluir Registro'}
                </button>
             </div>
           </>
         )}
 
-        <div className="flex flex-col items-center text-center mt-3">
-          <div className="w-20 h-20 rounded-3xl bg-slate-50 border border-slate-100 overflow-hidden mb-4 shadow-inner relative group-hover:ring-2 ring-blue-100 transition-all">
+        <div className="flex flex-col items-center text-center mt-2.5">
+          <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-100 overflow-hidden mb-2.5 shadow-inner relative group-hover:ring-2 ring-blue-100 transition-all">
             {user.avatar_url ? (
               <img src={user.avatar_url} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-slate-300 bg-blue-50/50">
-                <UserIcon size={32} />
+                <UserIcon size={24} />
               </div>
             )}
           </div>
 
           {isEditing ? (
-            <div className="w-full space-y-2">
-              <input className="w-full bg-slate-50 border border-blue-200 rounded-xl px-3 py-2 text-[11px] font-black uppercase text-center outline-none" value={name} onChange={e => setName(e.target.value)} autoFocus />
-              <input className="w-full bg-slate-50 border border-blue-200 rounded-xl px-3 py-2 text-[10px] font-bold text-slate-400 text-center outline-none" value={pos} onChange={e => setPos(e.target.value)} placeholder="CARGO" />
-              <div className="flex gap-2">
-                <button onClick={handleSave} className="flex-1 bg-emerald-500 text-white py-2 rounded-xl hover:bg-emerald-600 transition-colors shadow-lg"><Save size={14} className="mx-auto" /></button>
-                <button onClick={() => setIsEditing(false)} className="bg-slate-200 text-slate-600 p-2 rounded-xl hover:bg-slate-300 transition-colors"><X size={14} /></button>
+            <div className="w-full space-y-1.5">
+              <input className="w-full bg-slate-50 border border-blue-200 rounded-xl px-2.5 py-1.5 text-[10px] font-black uppercase text-center outline-none" value={name} onChange={e => setName(e.target.value)} autoFocus />
+              <input className="w-full bg-slate-50 border border-blue-200 rounded-xl px-2.5 py-1.5 text-[9px] font-bold text-slate-400 text-center outline-none" value={pos} onChange={e => setPos(e.target.value)} placeholder="CARGO" />
+              <div className="flex gap-1.5">
+                <button onClick={handleSave} className="flex-1 bg-emerald-500 text-white py-1.5 rounded-xl hover:bg-emerald-600 transition-colors shadow-md"><Save size={12} className="mx-auto" /></button>
+                <button onClick={() => setIsEditing(false)} className="bg-slate-200 text-slate-600 p-1.5 rounded-xl hover:bg-slate-300 transition-colors"><X size={12} /></button>
               </div>
             </div>
           ) : (
             <div onClick={() => setIsEditing(true)} className="cursor-text w-full">
-              <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-tighter leading-tight mb-1 group-hover:text-blue-600 transition-colors">{user.name}</h4>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em]">{user.position || 'DEFINIR CARGO'}</p>
+              <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-tight leading-tight mb-0.5 group-hover:text-blue-600 transition-colors truncate" title={user.name}>{user.name}</h4>
+              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider truncate" title={user.position || 'DEFINIR CARGO'}>{user.position || 'DEFINIR CARGO'}</p>
             </div>
           )}
         </div>
 
         <button 
           onClick={() => onAddSubordinate(user.id)}
-          className="absolute -bottom-5 left-1/2 -translate-x-1/2 w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-xl hover:bg-blue-700 hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 z-50 ring-4 ring-white"
+          className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 hover:scale-110 active:scale-95 transition-all opacity-0 group-hover:opacity-100 z-50 ring-2 ring-white"
         >
-          <Plus size={24} strokeWidth={3} />
+          <Plus size={18} strokeWidth={3} />
         </button>
       </div>
     </div>
@@ -133,36 +135,94 @@ const OrgNode: React.FC<{
   onUpdate: (id: string, u: any) => void;
   onRemove: (id: string) => void;
   onDelete: (id: string) => void;
-}> = ({ user, allUsers, onAdd, onUpdate, onRemove, onDelete }) => {
+  level?: number;
+  isVerticalSublevel?: boolean;
+}> = ({ user, allUsers, onAdd, onUpdate, onRemove, onDelete, level = 1, isVerticalSublevel = true }) => {
   const children = useMemo(() => 
     allUsers.filter(u => String(u.reportsTo) === String(user.id)), 
     [allUsers, user.id]
   );
+
+  const useVertical = isVerticalSublevel && level >= 2;
+
+  if (useVertical) {
+    return (
+      <div className="flex flex-col relative items-center">
+        <OrgCard user={user} onAddSubordinate={onAdd} onUpdate={onUpdate} onRemoveFromHierarchy={onRemove} onDeleteUser={onDelete} />
+        
+        {children.length > 0 && (
+          <div className="relative pt-6 flex flex-col items-center w-full">
+            {/* Vertical spine line coming down from the center of the parent */}
+            <div className="absolute top-0 bottom-[30px] bg-slate-300 w-[2px] left-1/2 -translate-x-1/2" />
+            
+            <div className="grid grid-cols-2 gap-x-12 gap-y-6 relative z-10 w-full pt-4">
+              {children.map((child, idx) => {
+                const isSingleChild = children.length === 1;
+                const isCentred = isSingleChild || (idx === children.length - 1 && idx % 2 === 0);
+                const isLeft = idx % 2 === 0;
+                
+                return (
+                  <div 
+                    key={child.id} 
+                    className={`relative flex items-center justify-center ${
+                      isCentred ? 'col-span-2 justify-self-center' : ''
+                    }`}
+                  >
+                    {/* Horizontal branch lines connecting to the center spine */}
+                    {!isCentred && (
+                      isLeft ? (
+                        <div className="absolute top-1/2 right-0 h-[2px] bg-slate-300 -translate-y-1/2 w-6 translate-x-6" />
+                      ) : (
+                        <div className="absolute top-1/2 left-0 h-[2px] bg-slate-300 -translate-y-1/2 w-6 -translate-x-6" />
+                      )
+                    )}
+                    
+                    <OrgNode 
+                      level={level + 1}
+                      user={child} 
+                      allUsers={allUsers} 
+                      onAdd={onAdd} 
+                      onUpdate={onUpdate} 
+                      onRemove={onRemove} 
+                      onDelete={onDelete} 
+                      isVerticalSublevel={isVerticalSublevel}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center">
       <OrgCard user={user} onAddSubordinate={onAdd} onUpdate={onUpdate} onRemoveFromHierarchy={onRemove} onDeleteUser={onDelete} />
       
       {children.length > 0 && (
-        <div className="relative pt-16 flex justify-center">
+        <div className="relative pt-10 flex justify-center">
           {/* Linha saindo do PAI para BAIXO */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[2px] h-8 bg-slate-300" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[2px] h-5 bg-slate-300" />
           
           {/* Linha HORIZONTAL conectando os filhos */}
-          <div className="absolute top-8 left-0 right-0 h-[2px] bg-slate-300 mx-auto" style={{ width: children.length > 1 ? `calc(100% - ${100 / children.length}%)` : '2px' }} />
+          <div className="absolute top-5 left-0 right-0 h-[2px] bg-slate-300 mx-auto" style={{ width: children.length > 1 ? `calc(100% - ${100 / children.length}%)` : '2px' }} />
           
-          <div className="flex gap-12">
+          <div className="flex gap-4">
             {children.map(child => (
-              <div key={child.id} className="relative pt-8 flex flex-col items-center">
+              <div key={child.id} className="relative pt-5 flex flex-col items-center">
                 {/* Linha subindo do FILHO para a barra horizontal */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[2px] h-8 bg-slate-300" />
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[2px] h-5 bg-slate-300" />
                 <OrgNode 
+                  level={level + 1}
                   user={child} 
                   allUsers={allUsers} 
                   onAdd={onAdd} 
                   onUpdate={onUpdate} 
                   onRemove={onRemove} 
                   onDelete={onDelete} 
+                  isVerticalSublevel={isVerticalSublevel}
                 />
               </div>
             ))}
@@ -195,27 +255,16 @@ const StrategyView: React.FC = () => {
   const [editData, setEditData] = useState<Partial<Strategy>>({});
   const [projectTreeZoom, setProjectTreeZoom] = useState(100);
   const [isProjectTreeFullScreen, setIsProjectTreeFullScreen] = useState(false);
+  const [hideCompletedProjects, setHideCompletedProjects] = useState(false);
+  const [isRoutineTreeFullScreen, setIsRoutineTreeFullScreen] = useState(false);
+  const [leadershipTreeZoom, setLeadershipTreeZoom] = useState(100);
+  const [isLeadershipTreeFullScreen, setIsLeadershipTreeFullScreen] = useState(false);
+  const [isVerticalSublevel, setIsVerticalSublevel] = useState(true);
 
   // Determinar líderes raiz (quem não reporta a ninguém ou cujo líder não existe mais)
   const roots = useMemo(() => {
     return users.filter(u => !u.reportsTo || !users.some(parent => String(parent.id) === String(u.reportsTo)));
   }, [users]);
-
-  // Resumo de quantos projetos cada colaborador é dono
-  const projectSummary = useMemo(() => {
-    return users.map(user => {
-      const ownedWS = workItems.filter(item => item.type === ItemType.WORKSTREAM && item.assigneeId === user.id);
-      const ownedInit = workItems.filter(item => item.type === ItemType.INITIATIVE && item.assigneeId === user.id);
-      const totalProjects = ownedWS.length + ownedInit.length;
-      return {
-        user,
-        ownedWS: ownedWS.length,
-        ownedInit: ownedInit.length,
-        totalProjects
-      };
-    }).filter(p => p.totalProjects > 0)
-      .sort((a, b) => b.totalProjects - a.totalProjects);
-  }, [users, workItems]);
 
   const handleEditStrategy = () => {
     if (strategy) {
@@ -623,37 +672,104 @@ const StrategyView: React.FC = () => {
                </div>
              )}
              
-             <div className="text-center mb-24">
+             <div className="text-center mb-16">
                 <div className="inline-flex items-center gap-6 bg-slate-900 text-white px-12 py-5 rounded-[2rem] shadow-2xl mb-8 border border-slate-800">
                    <Network size={32} className="text-blue-400" />
                    <h2 className="text-4xl font-black uppercase tracking-tighter leading-none">Organograma de Liderança</h2>
                 </div>
-                <p className="text-sm font-black text-slate-400 uppercase tracking-[0.4em]">Estrutura Hierárquica da Engenharia</p>
+                <p className="text-sm font-black text-slate-400 uppercase tracking-[0.4em] mb-12">Estrutura Hierárquica da Engenharia</p>
+
+                {/* ZOOM AND FULLSCREEN CONTROLS */}
+                <div className="flex flex-wrap items-center justify-center gap-6 mb-8 max-w-5xl mx-auto bg-white/90 backdrop-blur rounded-[2rem] p-4 border border-slate-100 shadow-md">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Ajuste de Tela:</span>
+                    <button 
+                      onClick={() => setLeadershipTreeZoom(prev => Math.max(40, prev - 10))}
+                      className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all"
+                      title="Zoom Out"
+                    >
+                      <ZoomOut size={16} />
+                    </button>
+                    <input 
+                      type="range" 
+                      min="40" 
+                      max="150" 
+                      value={leadershipTreeZoom}
+                      onChange={(e) => setLeadershipTreeZoom(Number(e.target.value))}
+                      className="w-32 accent-blue-600 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                    <button 
+                      onClick={() => setLeadershipTreeZoom(prev => Math.min(150, prev + 10))}
+                      className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all"
+                      title="Zoom In"
+                    >
+                      <ZoomIn size={16} />
+                    </button>
+                    <button 
+                      onClick={() => setLeadershipTreeZoom(100)}
+                      className="p-2 text-xs font-black bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-all uppercase px-3"
+                    >
+                      Reset ({leadershipTreeZoom}%)
+                    </button>
+                  </div>
+                  <div className="h-6 w-[1px] bg-slate-200" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Layout Subnível (3º nível+):</span>
+                    <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200/50">
+                      <button
+                        onClick={() => setIsVerticalSublevel(false)}
+                        className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all ${!isVerticalSublevel ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-200/50 text-slate-600'}`}
+                      >
+                        Horizontal
+                      </button>
+                      <button
+                        onClick={() => setIsVerticalSublevel(true)}
+                        className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all ${isVerticalSublevel ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-200/50 text-slate-600'}`}
+                      >
+                        Vertical Compacto
+                      </button>
+                    </div>
+                  </div>
+                  <div className="h-6 w-[1px] bg-slate-200" />
+                  <div>
+                    <button 
+                      onClick={() => setIsLeadershipTreeFullScreen(true)}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-[10px] font-black uppercase tracking-wider shadow-md transition-all hover:scale-105"
+                    >
+                      <Maximize2 size={14} className="text-blue-400" />
+                      Visualizar em Tela Cheia
+                    </button>
+                  </div>
+                </div>
              </div>
 
-             <div className="overflow-x-auto pb-40 custom-scrollbar">
-               <div className="min-w-max flex justify-center px-24">
-                 <div className="flex gap-28 items-start">
-                   {roots.length > 0 ? (
-                     roots.map(root => (
-                       <OrgNode 
-                         key={root.id} 
-                         user={root} 
-                         allUsers={users} 
-                         onAdd={setShowAssignModal}
-                         onUpdate={updateUser}
-                         onRemove={handleRemoveFromHierarchy}
-                         onDelete={handleDeleteUser}
-                       />
-                     ))
-                   ) : (
-                     <div className="text-center py-24 opacity-20 flex flex-col items-center gap-8">
-                        <Users2 size={100} strokeWidth={1} />
-                        <p className="text-3xl font-black uppercase tracking-tighter text-center">Nenhum líder raiz encontrado<br/>Verifique as configurações</p>
-                     </div>
-                   )}
-                 </div>
-               </div>
+             <div className="overflow-x-auto pt-10 pb-40 custom-scrollbar">
+                <div 
+                  className="min-w-max flex flex-col items-center px-12 transition-all duration-300 origin-top"
+                  style={{ transform: `scale(${leadershipTreeZoom / 100})`, transformOrigin: 'top center' }}
+                >
+                  <div className="flex gap-12 items-start pt-16">
+                    {roots.length > 0 ? (
+                      roots.map(root => (
+                        <OrgNode 
+                          key={root.id} 
+                          user={root} 
+                          allUsers={users} 
+                          onAdd={setShowAssignModal}
+                          onUpdate={updateUser}
+                          onRemove={handleRemoveFromHierarchy}
+                          onDelete={handleDeleteUser}
+                          isVerticalSublevel={isVerticalSublevel}
+                        />
+                      ))
+                    ) : (
+                      <div className="text-center py-24 opacity-20 flex flex-col items-center gap-8">
+                         <Users2 size={100} strokeWidth={1} />
+                         <p className="text-3xl font-black uppercase tracking-tighter text-center">Nenhum líder raiz encontrado<br/>Verifique as configurações</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
              </div>
           </div>
         </div>
@@ -672,53 +788,7 @@ const StrategyView: React.FC = () => {
                 </div>
                 <p className="text-sm font-black text-slate-400 uppercase tracking-[0.4em] mb-12">Hierarquia de Frentes de Trabalho e Iniciativas</p>
 
-                {/* Resumo de Projetos por Colaborador */}
-                {projectSummary.length > 0 && (
-                  <div className="max-w-6xl mx-auto px-6 mb-12">
-                    <div className="bg-white/90 backdrop-blur-md rounded-[2.5rem] p-8 border border-slate-100 shadow-xl">
-                      <h3 className="text-xs font-black uppercase tracking-[0.25em] text-slate-400 mb-6">
-                        Resumo de Liderança de Projetos
-                      </h3>
-                      <div className="flex flex-wrap gap-4 justify-center">
-                        {projectSummary.map(({ user, ownedWS, ownedInit, totalProjects }) => (
-                          <div key={user.id} className="flex items-center gap-4 bg-slate-50 border border-slate-100 rounded-[1.8rem] p-3 px-5 hover:shadow-md hover:border-slate-200 transition-all">
-                            <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden border border-white shadow-sm flex-shrink-0">
-                              {user.avatar_url ? (
-                                <img src={user.avatar_url} className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center font-black text-sm text-slate-600 bg-slate-100">
-                                  {user.name[0]}
-                                </div>
-                              )}
-                            </div>
-                            <div className="text-left">
-                              <h4 className="text-[11px] font-black uppercase text-slate-800 leading-none">
-                                {user.name.split(' ').slice(0, 2).join(' ')}
-                              </h4>
-                              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mt-1">
-                                {user.position || 'Colaborador'}
-                              </p>
-                              <div className="flex gap-2 mt-1.5">
-                                {ownedWS > 0 && (
-                                  <span className="text-[8px] font-black bg-purple-50 text-purple-600 border border-purple-100 px-2 py-0.5 rounded-full uppercase">
-                                    {ownedWS} {ownedWS === 1 ? 'Frente' : 'Frentes'}
-                                  </span>
-                                )}
-                                {ownedInit > 0 && (
-                                  <span className="text-[8px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-full uppercase">
-                                    {ownedInit} {ownedInit === 1 ? 'Inic.' : 'Inic.'}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* ZOOM AND FULLSCREEN CONTROLS */}
+                {/* ZOOM, TOGGLE, AND FULLSCREEN CONTROLS */}
                 <div className="flex flex-wrap items-center justify-center gap-6 mb-8 max-w-4xl mx-auto bg-white/90 backdrop-blur rounded-[2rem] p-4 border border-slate-100 shadow-md">
                   <div className="flex items-center gap-3">
                     <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Ajuste de Tela:</span>
@@ -752,6 +822,19 @@ const StrategyView: React.FC = () => {
                     </button>
                   </div>
                   <div className="h-6 w-[1px] bg-slate-200" />
+                  <button 
+                    onClick={() => setHideCompletedProjects(prev => !prev)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all border ${
+                      hideCompletedProjects 
+                        ? 'bg-amber-50 text-amber-700 border-amber-300 shadow-sm' 
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                    }`}
+                    title={hideCompletedProjects ? "Mostrar projetos concluídos" : "Ocultar projetos concluídos"}
+                  >
+                    {hideCompletedProjects ? <EyeOff size={14} className="text-amber-600" /> : <Eye size={14} className="text-slate-500" />}
+                    <span>{hideCompletedProjects ? 'Concluídos: Ocultos' : 'Ocultar Concluídos'}</span>
+                  </button>
+                  <div className="h-6 w-[1px] bg-slate-200" />
                   <div>
                     <button 
                       onClick={() => setIsProjectTreeFullScreen(true)}
@@ -782,7 +865,13 @@ const StrategyView: React.FC = () => {
                   </div>
 
                   {(() => {
-                    const workstreams = workItems.filter(item => item.type === ItemType.WORKSTREAM && !item.blocked);
+                    const isProjectCompleted = (item: WorkItem) => {
+                      return item.status === ItemStatus.CLOSED || calculateProjectProgress(item) === 100;
+                    };
+                    const workstreams = workItems
+                      .filter(item => item.type === ItemType.WORKSTREAM && !item.blocked)
+                      .filter(ws => !hideCompletedProjects || !isProjectCompleted(ws));
+
                     return workstreams.length > 0 ? (
                       <div className="relative pt-16 flex justify-center w-full">
                         {/* Linha saindo do Root para BAIXO */}
@@ -794,7 +883,9 @@ const StrategyView: React.FC = () => {
                         <div className="flex gap-8 items-start">
                           {workstreams.map(ws => {
                             const wsAssignee = users.find(u => u.id === ws.assigneeId);
-                            const initiatives = getWSInitiatives(ws.id);
+                            const initiatives = getWSInitiatives(ws.id).filter(init => 
+                              !hideCompletedProjects || !isProjectCompleted(init)
+                            );
                             const wsProgress = calculateProjectProgress(ws);
  
                             return (
@@ -918,6 +1009,29 @@ const StrategyView: React.FC = () => {
         </div>
       </div>
 
+      {/* PARTE 6: ORGANOGRAMA DE ROTINAS - FULL SCREEN CANVAS */}
+      <div className="w-full px-4 md:px-12 mt-32">
+        <div className="text-center">
+          <SectionHeader title="Organograma de Rotinas" number="6" />
+          <div className="relative py-20 border-t-2 border-slate-50 bg-slate-50/20 rounded-[5rem] mt-4 shadow-inner w-full">
+             
+             <div className="text-center mb-10">
+                <div className="inline-flex items-center gap-6 bg-slate-900 text-white px-12 py-5 rounded-[2rem] shadow-2xl mb-6 border border-slate-800">
+                   <RotateCcw size={32} className="text-teal-400" />
+                   <h2 className="text-4xl font-black uppercase tracking-tighter leading-none">Organograma de Rotinas</h2>
+                </div>
+                <p className="text-sm font-black text-slate-400 uppercase tracking-[0.4em] mb-4">Hierarquia de Rotinas Operacionais e Processos</p>
+             </div>
+
+             <RoutineOrganogram 
+               users={users} 
+               isFullScreen={false} 
+               onToggleFullScreen={() => setIsRoutineTreeFullScreen(true)} 
+             />
+          </div>
+        </div>
+      </div>
+
       {/* FULLSCREEN MODAL RENDERING */}
       {isProjectTreeFullScreen && (
         <div className="fixed inset-0 z-[10000] bg-slate-950 text-white flex flex-col p-6 overflow-hidden animate-in fade-in duration-300">
@@ -931,7 +1045,7 @@ const StrategyView: React.FC = () => {
               </div>
             </div>
             
-            {/* Zoom Controls inside Fullscreen */}
+            {/* Zoom & Toggle Controls inside Fullscreen */}
             <div className="flex items-center gap-4 bg-slate-900 border border-slate-850 rounded-2xl p-2 px-5">
               <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Zoom:</span>
               <button 
@@ -962,6 +1076,17 @@ const StrategyView: React.FC = () => {
               >
                 Reset ({projectTreeZoom}%)
               </button>
+              <div className="h-4 w-[1px] bg-slate-700" />
+              <button 
+                onClick={() => setHideCompletedProjects(prev => !prev)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all ${
+                  hideCompletedProjects ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-slate-800 text-slate-300'
+                }`}
+                title={hideCompletedProjects ? "Mostrar projetos concluídos" : "Ocultar projetos concluídos"}
+              >
+                {hideCompletedProjects ? <EyeOff size={12} /> : <Eye size={12} />}
+                <span>{hideCompletedProjects ? 'Ocultos' : 'Ocultar Concluídos'}</span>
+              </button>
             </div>
 
             <button 
@@ -991,7 +1116,13 @@ const StrategyView: React.FC = () => {
               </div>
 
               {(() => {
-                const workstreams = workItems.filter(item => item.type === ItemType.WORKSTREAM && !item.blocked);
+                const isProjectCompleted = (item: WorkItem) => {
+                  return item.status === ItemStatus.CLOSED || calculateProjectProgress(item) === 100;
+                };
+                const workstreams = workItems
+                  .filter(item => item.type === ItemType.WORKSTREAM && !item.blocked)
+                  .filter(ws => !hideCompletedProjects || !isProjectCompleted(ws));
+
                 return workstreams.length > 0 ? (
                   <div className="relative pt-16 flex justify-center w-full">
                     {/* Linha saindo do Root para BAIXO */}
@@ -1003,7 +1134,9 @@ const StrategyView: React.FC = () => {
                     <div className="flex gap-8 items-start">
                       {workstreams.map(ws => {
                         const wsAssignee = users.find(u => u.id === ws.assigneeId);
-                        const initiatives = getWSInitiatives(ws.id);
+                        const initiatives = getWSInitiatives(ws.id).filter(init => 
+                          !hideCompletedProjects || !isProjectCompleted(init)
+                        );
                         const wsProgress = calculateProjectProgress(ws);
 
                         return (
@@ -1121,6 +1254,121 @@ const StrategyView: React.FC = () => {
                   </div>
                 );
               })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FULLSCREEN ROUTINE MODAL RENDERING */}
+      {isRoutineTreeFullScreen && (
+        <div className="fixed inset-0 z-[10000] bg-slate-950 text-white flex flex-col overflow-hidden animate-in fade-in duration-300">
+          <div className="flex-1 h-full w-full overflow-hidden relative">
+            <RoutineOrganogram 
+              users={users} 
+              isFullScreen={true} 
+              onToggleFullScreen={() => setIsRoutineTreeFullScreen(false)} 
+            />
+          </div>
+        </div>
+      )}
+
+      {/* FULLSCREEN LEADERSHIP MODAL RENDERING */}
+      {isLeadershipTreeFullScreen && (
+        <div className="fixed inset-0 z-[10000] bg-slate-950 text-white flex flex-col p-6 overflow-hidden animate-in fade-in duration-300">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row items-center justify-between border-b border-slate-800 pb-4 mb-6 shrink-0 gap-4">
+            <div className="flex items-center gap-4">
+              <Network className="text-blue-400 animate-pulse" size={32} />
+              <div className="text-left">
+                <h2 className="text-xl font-black uppercase tracking-tight text-white leading-none mb-1">Organograma de Liderança (Tela Cheia)</h2>
+                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Estrutura Hierárquica da Engenharia</p>
+              </div>
+            </div>
+            
+            {/* Zoom Controls inside Fullscreen */}
+            <div className="flex items-center gap-6 bg-slate-900 border border-slate-850 rounded-2xl p-2 px-5">
+              <div className="flex items-center gap-3">
+                <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Zoom:</span>
+                <button 
+                  onClick={() => setLeadershipTreeZoom(prev => Math.max(40, prev - 10))}
+                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all"
+                  title="Zoom Out"
+                >
+                  <ZoomOut size={14} />
+                </button>
+                <input 
+                  type="range" 
+                  min="40" 
+                  max="150" 
+                  value={leadershipTreeZoom}
+                  onChange={(e) => setLeadershipTreeZoom(Number(e.target.value))}
+                  className="w-32 accent-blue-500 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                />
+                <button 
+                  onClick={() => setLeadershipTreeZoom(prev => Math.min(150, prev + 10))}
+                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all"
+                  title="Zoom In"
+                >
+                  <ZoomIn size={14} />
+                </button>
+                <button 
+                  onClick={() => setLeadershipTreeZoom(100)}
+                  className="p-2 text-[9px] font-black bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all uppercase px-3"
+                >
+                  Reset ({leadershipTreeZoom}%)
+                </button>
+              </div>
+
+              <div className="h-6 w-[1px] bg-slate-800" />
+
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Layout Subnível:</span>
+                <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800">
+                  <button
+                    onClick={() => setIsVerticalSublevel(false)}
+                    className={`px-3 py-1.5 rounded-xl text-[8px] font-black uppercase transition-all ${!isVerticalSublevel ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-800 text-slate-400'}`}
+                  >
+                    Horizontal
+                  </button>
+                  <button
+                    onClick={() => setIsVerticalSublevel(true)}
+                    className={`px-3 py-1.5 rounded-xl text-[8px] font-black uppercase transition-all ${isVerticalSublevel ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-800 text-slate-400'}`}
+                  >
+                    Vertical Compacto
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setIsLeadershipTreeFullScreen(false)}
+              className="flex items-center gap-2 px-5 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all"
+            >
+              <Minimize2 size={14} />
+              Sair da Tela Cheia
+            </button>
+          </div>
+
+          {/* Fullscreen Scrollable Canvas */}
+          <div className="flex-1 overflow-auto bg-slate-900/40 rounded-[2.5rem] p-12 border border-slate-900 flex justify-center items-start custom-scrollbar">
+            <div 
+              className="origin-top transition-all duration-300 flex flex-col items-center"
+              style={{ transform: `scale(${leadershipTreeZoom / 100})`, transformOrigin: 'top center' }}
+            >
+              <div className="flex gap-12 items-start pt-16">
+                {roots.map(root => (
+                  <OrgNode 
+                    key={root.id} 
+                    user={root} 
+                    allUsers={users} 
+                    onAdd={setShowAssignModal}
+                    onUpdate={updateUser}
+                    onRemove={handleRemoveFromHierarchy}
+                    onDelete={handleDeleteUser}
+                    isVerticalSublevel={isVerticalSublevel}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </div>

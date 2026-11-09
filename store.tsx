@@ -28,7 +28,7 @@ interface AgileContextType {
   deleteSprint: (id: string) => Promise<void>;
 
   addUser: (name: string, position?: string, reportsTo?: string, avatarFile?: File) => Promise<void>;
-  updateUser: (id: string, updates: Partial<User>) => Promise<void>;
+  updateUser: (id: string, updates: Partial<User>, avatarFile?: File | null) => Promise<void>;
   removeUser: (id: string) => Promise<void>;
 
   addMeeting: (meeting: Partial<Meeting>) => Promise<string | null>;
@@ -338,14 +338,42 @@ export const AgileProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const updateUser = async (id: string, updates: Partial<User>) => {
+  const updateUser = async (id: string, updates: Partial<User>, avatarFile?: File | null) => {
     if (!supabase) return;
-    await supabase.from('profiles').update({
-      name: updates.name,
-      position: updates.position,
-      reports_to: updates.reportsTo || null
-    }).eq('id', id);
-    await fetchData();
+    try {
+      let avatar_url = updates.avatar_url;
+      if (avatarFile) {
+        const path = `avatars/${Date.now()}-${avatarFile.name}`;
+        const { data, error: uploadError } = await supabase.storage.from('avatars').upload(path, avatarFile);
+        if (uploadError) {
+          console.error("Erro ao subir avatar para o Supabase Storage:", uploadError);
+          alert(`Aviso ao enviar foto: ${uploadError.message}`);
+        } else if (data) {
+          avatar_url = supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;
+        }
+      } else if (avatarFile === null) {
+        avatar_url = null;
+      }
+
+      const payload: any = {
+        name: updates.name,
+        position: updates.position || null,
+        reports_to: updates.reportsTo || null,
+      };
+
+      if (avatar_url !== undefined) {
+        payload.avatar_url = avatar_url;
+      }
+
+      const { error: updateError } = await supabase.from('profiles').update(payload).eq('id', id);
+      if (updateError) {
+        console.error("Erro ao atualizar perfil no Supabase:", updateError);
+        alert(`Erro ao atualizar membro: ${updateError.message}`);
+      }
+      await fetchData();
+    } catch (err: any) {
+      console.error("Erro inesperado em updateUser:", err);
+    }
   };
 
   const removeUser = async (id: string) => {
